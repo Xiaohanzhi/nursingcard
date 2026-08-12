@@ -1,0 +1,1124 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>专科知识卡平台 · MVP 原型</title>
+<style>
+:root{
+  --primary:#0A6E6E;--primary-light:#E6F2F2;--primary-bg:#EEF7F4;
+  --primary-hover:#08595A;
+  --bg:#F8F7F4;--surface:#FFFFFF;--border:#EBE9E4;
+  --text:#1A1A18;--text2:#787774;--text3:#A8A6A0;
+  --danger:#E0533D;--danger-bg:#FEF2F0;
+  --warning:#D48B2A;--warning-bg:#FEF9F0;
+  --warning-text:#ad6800;
+  --success:#2D8C4A;--success-bg:#EEF7F2;
+  --info:#3B7DD8;--info-bg:#EEF4FB;
+  --purple:#6B4E9B;--purple-bg:#F4F0FA;
+  --sidebar:#0D3B3B;
+  --radius:8px;--radius-sm:6px;--radius-xs:4px;
+  --shadow:0 1px 2px rgba(0,0,0,.04);
+  --shadow-hover:0 4px 14px rgba(0,0,0,.08);
+  --shadow-modal:0 10px 40px rgba(0,0,0,.15);
+  --transition:180ms ease;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+  background:var(--bg);color:var(--text);
+  display:flex;height:100vh;overflow:hidden;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit}
+
+/* ===== Sidebar ===== */
+.sidebar{
+  width:220px;background:linear-gradient(180deg,var(--sidebar),#0A5454);
+  color:#fff;display:flex;flex-direction:column;flex-shrink:0;
+}
+.sidebar .logo{
+  padding:22px 20px 18px;font-size:16px;font-weight:700;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;gap:10px;letter-spacing:-0.3px;
+}
+.sidebar .logo .icon{
+  width:30px;height:30px;background:var(--primary);
+  border-radius:var(--radius-sm);display:flex;align-items:center;
+  justify-content:center;font-size:15px;
+}
+.sidebar .user{
+  padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;gap:10px;font-size:13px;
+}
+.sidebar .user .avatar{
+  width:34px;height:34px;border-radius:50%;background:var(--primary);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:600;flex-shrink:0;
+}
+.sidebar .user .info{line-height:1.3;min-width:0}
+.sidebar .user .name{font-weight:600}
+.sidebar .user .role{font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
+.sidebar .dept{
+  padding:12px 20px;font-size:12px;color:rgba(255,255,255,.55);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;gap:6px;
+}
+.sidebar .dept .dept-dot{width:6px;height:6px;border-radius:50%;background:#14B8A6}
+.sidebar nav{flex:1;padding:8px 0;overflow-y:auto}
+.sidebar nav .section{
+  font-size:10px;color:rgba(255,255,255,.3);
+  padding:14px 20px 6px;text-transform:uppercase;
+  letter-spacing:1.2px;font-weight:600;
+}
+.sidebar nav .item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;cursor:pointer;font-size:13px;
+  transition:all var(--transition);
+  border-left:3px solid transparent;
+  color:rgba(255,255,255,.7);margin:1px 0;
+}
+.sidebar nav .item:hover{background:rgba(255,255,255,.05);color:#fff}
+.sidebar nav .item.active{
+  background:rgba(20,184,166,.18);color:#fff;border-left-color:#14B8A6;
+}
+.sidebar nav .item .badge{
+  background:var(--danger);color:#fff;font-size:10px;
+  padding:1px 7px;border-radius:10px;margin-left:auto;font-weight:600;
+}
+.sidebar .footer{
+  padding:14px 20px;font-size:11px;color:rgba(255,255,255,.35);
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{
+  height:52px;background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 24px;
+  gap:16px;flex-shrink:0;
+}
+.topbar .breadcrumb{font-size:13px;color:var(--text2)}
+.topbar .breadcrumb b{color:var(--primary);font-weight:600}
+.topbar .search{
+  margin-left:24px;flex:1;max-width:340px;
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:6px 10px;
+  font-size:13px;color:var(--text3);
+}
+.topbar .search input{
+  border:none;background:transparent;outline:none;
+  flex:1;font-size:13px;color:var(--text);font-family:inherit;
+}
+.topbar .actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.icon-btn{
+  width:34px;height:34px;border-radius:var(--radius-sm);
+  background:transparent;border:1px solid transparent;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);font-size:16px;
+  transition:all var(--transition);
+}
+.icon-btn:hover{background:var(--bg);color:var(--text);border-color:var(--border)}
+
+.content{flex:1;overflow-y:auto;padding:24px 28px 40px}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.page-title{font-size:20px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px;color:var(--text)}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--radius-sm);
+  font-size:13px;cursor:pointer;border:1px solid transparent;
+  transition:all var(--transition);white-space:nowrap;
+  font-weight:500;font-family:inherit;
+}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-default{background:var(--surface);color:var(--text);border-color:var(--border)}
+.btn-default:hover{border-color:var(--primary);color:var(--primary)}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{filter:brightness(.95)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{filter:brightness(.95)}
+.btn-warning{background:var(--warning);color:#fff}
+.btn-warning:hover{filter:brightness(.95)}
+.btn-ghost{background:transparent;color:var(--text2)}
+.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-sm{padding:4px 10px;font-size:12px;border-radius:var(--radius-xs)}
+.btn-lg{padding:10px 22px;font-size:14px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+.tag{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 8px;border-radius:var(--radius-xs);
+  font-size:11px;font-weight:500;letter-spacing:-0.1px;
+  border:1px solid transparent;
+}
+.tag-blue{background:var(--primary-light);color:var(--primary)}
+.tag-green{background:var(--success-bg);color:var(--success)}
+.tag-orange{background:var(--warning-bg);color:var(--warning)}
+.tag-red{background:var(--danger-bg);color:var(--danger)}
+.tag-purple{background:var(--purple-bg);color:var(--purple)}
+.tag-gray{background:var(--bg);color:var(--text2);border-color:var(--border)}
+
+/* ===== Filter bar / Cards ===== */
+.filter-bar{
+  background:var(--surface);border-radius:var(--radius);
+  padding:14px 18px;margin-bottom:14px;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  box-shadow:var(--shadow);border:1px solid var(--border);
+}
+.filter-bar label{font-size:12px;color:var(--text2);font-weight:500}
+.filter-bar select,.filter-bar input{
+  border:1px solid var(--border);border-radius:var(--radius-xs);
+  padding:6px 10px;font-size:13px;outline:none;
+  background:var(--surface);font-family:inherit;color:var(--text);
+}
+.filter-bar select:focus,.filter-bar input:focus{
+  border-color:var(--primary);box-shadow:0 0 0 3px rgba(10,110,110,.1);
+}
+
+.type-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:5px 12px;border-radius:14px;font-size:12px;
+  border:1px solid var(--border);background:var(--surface);
+  cursor:pointer;color:var(--text2);transition:all var(--transition);
+  font-weight:500;
+}
+.type-btn:hover{border-color:var(--primary);color:var(--primary)}
+.type-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.type-btn .count{
+  background:rgba(0,0,0,.08);border-radius:8px;
+  padding:0 6px;font-size:11px;font-weight:600;
+}
+.type-btn.active .count{background:rgba(255,255,255,.25)}
+
+.card{
+  background:var(--surface);border-radius:var(--radius);
+  padding:20px;box-shadow:var(--shadow);
+  border:1px solid var(--border);
+}
+.card-title{
+  font-size:15px;font-weight:600;margin-bottom:14px;
+  padding-bottom:12px;border-bottom:1px solid var(--border);
+  letter-spacing:-0.2px;display:flex;align-items:center;gap:8px;
+}
+
+table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border)}
+table th{background:#FAFAF8;padding:11px 16px;text-align:left;font-size:12px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);letter-spacing:-0.1px;white-space:nowrap}
+table td{padding:13px 16px;font-size:13px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+table tr:last-child td{border-bottom:none}
+table tbody tr:hover{background:#FAFAF8;cursor:pointer}
+table a{color:var(--primary);text-decoration:none;cursor:pointer;font-weight:500}
+table a:hover{text-decoration:underline}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
+.empty-state .icon{font-size:36px;margin-bottom:8px;opacity:.4}
+.empty-state .tip{font-size:12px;margin-top:4px}
+
+/* ===== Steps ===== */
+.steps{
+  display:flex;align-items:center;margin-bottom:24px;
+  background:var(--surface);padding:14px 20px;
+  border-radius:var(--radius);border:1px solid var(--border);
+  box-shadow:var(--shadow);
+}
+.step{
+  display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text3);
+}
+.step .step-num{
+  width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;
+  border:2px solid var(--border);background:var(--surface);
+}
+.step.active .step-num{background:var(--primary);border-color:var(--primary);color:#fff}
+.step.active{color:var(--primary);font-weight:600}
+.step.done .step-num{background:var(--success);border-color:var(--success);color:#fff}
+.step.done{color:var(--success)}
+.step-line{flex:1;height:2px;background:var(--border);margin:0 14px;min-width:60px;border-radius:1px}
+.step-line.done{background:var(--success)}
+
+/* ===== Forms ===== */
+.form-group{margin-bottom:14px}
+.form-group label{
+  display:block;font-size:12px;font-weight:600;color:var(--text2);
+  margin-bottom:6px;letter-spacing:-0.1px;
+}
+.form-group label .required{color:var(--danger);margin-left:2px}
+.form-group .hint{font-size:11px;color:var(--text3);margin-top:4px}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;border:1px solid var(--border);
+  border-radius:var(--radius-xs);padding:8px 10px;
+  font-size:13px;outline:none;font-family:inherit;
+  background:var(--surface);transition:all var(--transition);
+  color:var(--text);
+}
+.form-group textarea{resize:vertical;min-height:90px;line-height:1.6}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
+  border-color:var(--primary);box-shadow:0 0 0 3px rgba(10,110,110,.1);
+}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1;min-width:0}
+.form-section-title{
+  font-size:13px;font-weight:600;color:var(--primary);
+  margin:18px 0 10px;padding-bottom:6px;
+  border-bottom:1px solid var(--primary-light);
+}
+
+/* ===== Card Select List (iterate) ===== */
+.card-select-list{
+  display:flex;flex-direction:column;gap:6px;
+  max-height:280px;overflow-y:auto;padding:4px;
+}
+.card-select-item{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);cursor:pointer;
+  transition:all var(--transition);background:var(--surface);
+}
+.card-select-item:hover{border-color:var(--primary)}
+.card-select-item.selected{border-color:var(--primary);background:var(--primary-bg)}
+.csi-check{
+  width:20px;height:20px;border:2px solid var(--border);
+  border-radius:var(--radius-xs);display:flex;align-items:center;
+  justify-content:center;flex-shrink:0;transition:all var(--transition);
+  font-size:12px;color:transparent;
+}
+.card-select-item.selected .csi-check{background:var(--primary);border-color:var(--primary);color:#fff}
+.csi-name{flex:1;font-size:13px;font-weight:500;min-width:0}
+.csi-meta{display:flex;gap:6px;flex-shrink:0}
+.csi-version{font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg);border-radius:3px}
+
+.collapsed{display:none}
+
+/* ===== Iterate Diff Row ===== */
+.iterate-compare{
+  border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:12px;overflow:hidden;background:var(--surface);
+}
+.ic-header{
+  background:#FAFAF8;padding:10px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;
+}
+.ic-card-name{color:var(--primary)}
+.ic-body{padding:12px 16px}
+.iterate-diff-row{
+  display:flex;align-items:flex-start;margin-bottom:8px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  overflow:hidden;font-size:12px;background:var(--surface);
+}
+.idr-field{
+  width:140px;flex-shrink:0;padding:10px 12px;
+  background:#FAFAF8;border-right:1px solid var(--border);
+  font-weight:600;color:var(--text2);
+}
+.idr-original{
+  width:180px;flex-shrink:0;padding:10px 12px;
+  background:var(--danger-bg);border-right:1px solid var(--border);
+  word-break:break-all;
+}
+.idr-suggest{
+  width:180px;flex-shrink:0;padding:10px 12px;
+  background:var(--success-bg);border-right:1px solid var(--border);
+  word-break:break-all;
+}
+.idr-reason{
+  flex:1;padding:10px 12px;background:var(--warning-bg);
+  word-break:break-all;
+}
+.idr-label{
+  font-size:10px;color:var(--danger);
+  margin-bottom:2px;font-weight:600;
+}
+.idr-text{color:var(--text3)}
+.idr-edit{
+  flex:1;min-width:200px;padding:8px 10px;
+  display:flex;flex-direction:column;gap:6px;background:var(--surface);
+}
+.idr-edit input{
+  width:100%;border:1px solid var(--border);
+  border-radius:var(--radius-xs);padding:6px 8px;
+  font-size:12px;font-family:inherit;outline:none;
+}
+.idr-edit input:focus{border-color:var(--primary)}
+.idr-edit textarea{
+  width:100%;border:1px solid var(--border);
+  border-radius:var(--radius-xs);padding:6px 8px;
+  font-size:12px;font-family:inherit;outline:none;resize:vertical;line-height:1.5;
+}
+.idr-edit textarea:focus{border-color:var(--primary)}
+.idr-json{font-family:Consolas,"Courier New",monospace;font-size:11px !important}
+.iterate-diff-row.idr-measures .idr-original,
+.iterate-diff-row.idr-measures .idr-suggest{width:290px}
+.idr-m-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-xs);padding:8px 10px;margin-bottom:8px;
+}
+.idr-m-card:last-child{margin-bottom:0}
+.idr-m-card .idr-m-head{
+  font-size:12px;margin-bottom:4px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+}
+.idr-m-card .idr-m-acts{
+  font-size:11px;color:var(--text2);line-height:1.7;
+  word-break:break-all;
+}
+.idr-m-empty{font-size:11px;color:var(--text3)}
+.idr-actions{display:flex;gap:4px;flex-wrap:wrap}
+.idr-actions button{
+  padding:3px 8px;font-size:11px;
+  border:1px solid var(--border);border-radius:3px;
+  cursor:pointer;background:var(--surface);font-family:inherit;
+}
+.idr-actions button.accept{background:var(--success-bg);border-color:var(--success);color:var(--success)}
+.idr-actions button.reject{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+.idr-actions button:hover{filter:brightness(.96)}
+
+/* ===== AI Extract Result (preview step) ===== */
+.aiExtractResult{margin-top:16px}
+.aiExtractResult .legend{
+  font-size:12px;color:var(--text3);
+  margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap;
+}
+.aiExtractResult .legend span{display:inline-flex;align-items:center;gap:4px}
+.aiExtractResult .legend .dot{
+  width:8px;height:8px;border-radius:2px;
+}
+
+/* ===== Modal ===== */
+.modal-overlay{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,.4);z-index:1000;
+  align-items:center;justify-content:center;
+  backdrop-filter:blur(2px);
+}
+.modal-overlay.show{display:flex}
+.modal{
+  background:var(--surface);border-radius:var(--radius);
+  width:560px;max-width:92vw;box-shadow:var(--shadow-modal);
+  animation:popIn .2s ease;display:flex;flex-direction:column;
+  max-height:90vh;
+}
+.modal.large{width:960px;max-width:95vw}
+@keyframes popIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+.modal-header{
+  padding:16px 20px;border-bottom:1px solid var(--border);
+  font-size:15px;font-weight:600;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-header .close{font-size:20px;cursor:pointer;color:var(--text3);line-height:1}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{
+  padding:12px 20px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+
+/* ===== Review Modal (split) ===== */
+.split-layout{display:flex;gap:20px}
+.split-left{flex:1;min-width:0}
+.split-right{width:380px;flex-shrink:0}
+.review-field{
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px;margin-bottom:10px;position:relative;background:var(--surface);
+}
+.review-field.modified{border-color:var(--warning);background:var(--warning-bg)}
+.field-label{font-size:11px;color:var(--text3);margin-bottom:4px}
+.field-ai{font-size:13px;color:var(--text2);text-decoration:line-through;margin-bottom:4px}
+.field-final{font-size:13px;color:var(--text);font-weight:500}
+
+/* ===== Ref Panel ===== */
+.ref-panel{
+  background:#FAFAF8;border-radius:var(--radius);
+  border:1px solid var(--border);overflow:hidden;
+}
+.ref-header{
+  padding:12px 16px;background:#F5F4F1;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:13px;font-weight:600;
+}
+.ref-body{
+  padding:14px;max-height:calc(100vh - 320px);overflow-y:auto;
+}
+.ref-item{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px;margin-bottom:10px;
+}
+.ref-title{font-weight:600;font-size:13px;margin-bottom:6px}
+.ref-excerpt{
+  font-size:12px;color:var(--text2);line-height:1.6;
+  padding:8px;background:var(--warning-bg);
+  border-left:3px solid var(--warning);
+  margin:8px 0;border-radius:0 var(--radius-xs) var(--radius-xs) 0;
+}
+.ref-meta{font-size:11px;color:var(--text3)}
+
+/* ===== Toast ===== */
+.toast-container{
+  position:fixed;top:80px;left:50%;transform:translateX(-50%);
+  z-index:2000;display:flex;flex-direction:column;gap:8px;
+  pointer-events:none;
+}
+.toast{
+  background:var(--text);color:#fff;
+  padding:10px 18px;border-radius:var(--radius);
+  font-size:13px;box-shadow:var(--shadow-modal);
+  animation:slideDown .3s ease;
+  pointer-events:auto;
+}
+.toast-success{background:var(--success)}
+.toast-error{background:var(--danger)}
+.toast-warn{background:var(--warning)}
+.toast-info{background:var(--info)}
+@keyframes slideDown{
+  from{opacity:0;transform:translateY(-12px)}
+  to{opacity:1;transform:none}
+}
+
+/* ===== AI Loading ===== */
+.ai-loading{
+  padding:40px 20px;text-align:center;
+}
+.ai-loading .spinner{
+  width:48px;height:48px;margin:0 auto 16px;
+  border:4px solid var(--bg);border-top-color:var(--primary);
+  border-radius:50%;animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-loading .status{
+  font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px;
+}
+.ai-loading .step-text{font-size:12px;color:var(--text3)}
+.ai-progress{
+  height:6px;background:var(--bg);border-radius:3px;
+  overflow:hidden;margin:0 auto 8px;max-width:360px;
+}
+.ai-progress-bar{
+  height:100%;background:var(--primary);
+  width:0%;transition:width .3s ease;
+}
+
+/* ===== Stat cards ===== */
+.stat-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:14px;margin-bottom:18px;
+}
+.stat-card{
+  background:var(--surface);padding:16px 18px;
+  border-radius:var(--radius);border:1px solid var(--border);
+  box-shadow:var(--shadow);
+}
+.stat-card .label{font-size:12px;color:var(--text2);margin-bottom:6px}
+.stat-card .value{
+  font-size:24px;font-weight:700;color:var(--text);
+  letter-spacing:-0.5px;
+}
+.stat-card .trend{font-size:11px;color:var(--text3);margin-top:2px}
+.stat-card .accent-line{
+  width:32px;height:3px;border-radius:2px;
+  background:var(--primary);margin-bottom:10px;
+}
+.stat-card.accent-orange .accent-line{background:var(--warning)}
+.stat-card.accent-success .accent-line{background:var(--success)}
+.stat-card.accent-purple .accent-line{background:var(--purple)}
+
+.tab-switch{
+  display:flex;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:4px;margin-bottom:14px;width:fit-content;
+  box-shadow:var(--shadow);
+}
+.tab-item{
+  padding:7px 18px;border-radius:var(--radius-xs);
+  font-size:13px;cursor:pointer;color:var(--text2);
+  transition:all var(--transition);font-weight:500;
+  display:flex;align-items:center;gap:6px;
+}
+.tab-item:hover{color:var(--text)}
+.tab-item.active{background:var(--primary);color:#fff}
+.tab-item.active .tag{background:rgba(255,255,255,.2);color:#fff}
+
+/* ===== 推荐护理措施编辑器 ===== */
+.measure-row{
+  display:grid;grid-template-columns:132px 1fr 2fr 34px;
+  gap:8px;align-items:start;margin-bottom:10px;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px;
+}
+.measure-row .ms-priority{
+  height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:#fff;padding:0 8px;font-size:13px;color:var(--text);
+}
+.measure-row .ms-name{
+  height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:0 10px;font-size:13px;color:var(--text);
+}
+.measure-row .ms-activities{
+  min-height:60px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:8px 10px;font-size:13px;color:var(--text);resize:vertical;font-family:inherit;
+}
+.measure-row .ms-del{align-self:start}
+.measure-row .ms-priority:focus,.measure-row .ms-name:focus,.measure-row .ms-activities:focus{
+  outline:none;border-color:var(--primary);
+}
+/* ===== 登录页 ===== */
+.login-overlay{
+  position:fixed;inset:0;z-index:1000;
+  background:linear-gradient(135deg,#0D3B3B 0%,#0A6E6E 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-overlay.hidden{display:none}
+.login-card{
+  width:400px;background:var(--surface);border-radius:12px;
+  padding:34px 36px;box-shadow:0 20px 60px rgba(0,0,0,.25);
+}
+.login-card .login-logo{font-size:20px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px}
+.login-card .login-logo .icon{
+  width:38px;height:38px;border-radius:10px;background:var(--primary);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.login-card .login-sub{font-size:12px;color:var(--text3);margin:6px 0 22px}
+.login-card .login-err{font-size:12px;color:var(--danger);min-height:18px;margin-bottom:8px}
+.login-card .login-hint{
+  margin-top:16px;font-size:11px;color:var(--text3);line-height:1.8;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px;
+}
+
+/* ===== 文件上传 ===== */
+.dropzone{
+  border:2px dashed var(--border);border-radius:var(--radius);
+  padding:26px 20px;text-align:center;cursor:pointer;
+  transition:all var(--transition);background:var(--surface);
+}
+.dropzone:hover,.dropzone.dragover{border-color:var(--primary);background:var(--primary-bg)}
+.dropzone .dz-icon{font-size:30px;margin-bottom:8px;opacity:.55}
+.dropzone .dz-hint{font-size:11px;color:var(--text3);margin-top:6px}
+.upload-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;margin-top:8px;border:1px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--bg);font-size:13px;
+}
+.upload-item.selected{border-color:var(--primary);background:var(--primary-bg)}
+.upload-item .u-check{
+  width:18px;height:18px;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;
+}
+.upload-item.selected .u-check{background:var(--primary);border-color:var(--primary)}
+.upload-item .u-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-item .u-size{font-size:11px;color:var(--text3)}
+.upload-item .u-del{color:var(--danger);cursor:pointer;font-size:13px;background:none;border:none;padding:2px 4px}
+
+/* ===== AI 原文 / 设置页 ===== */
+.ai-raw-text{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px 14px;white-space:pre-wrap;word-break:break-word;
+  font-size:13px;line-height:1.7;max-height:420px;overflow:auto;color:var(--text);
+}
+.ai-warn{
+  background:var(--warning-bg);border:1px solid #f0d9b5;border-radius:var(--radius-sm);
+  color:var(--warning-text);font-size:12px;line-height:1.7;
+  padding:10px 12px;margin-bottom:12px;
+}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.settings-grid .card{display:flex;flex-direction:column}
+.settings-grid .card .card-body{flex:1}
+.field-note{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.7}
+.divider{margin:18px 0;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- ━━━ 登录页 ━━━ -->
+<div class="login-overlay hidden" id="loginPage">
+  <div class="login-card">
+    <div class="login-logo"><div class="icon">🩺</div>专科知识卡平台</div>
+    <div class="login-sub">轻量部署模块 · 知识治理</div>
+    <div class="form-group">
+      <label>用户名</label>
+      <input id="loginUser" value="admin">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input id="loginPass" type="password" value="admin123">
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">登 录</button>
+    <div class="login-hint">默认账号：admin/admin123（管理员）· zhang/123456（录入）· li/123456（一审）· wang/123456（二审）</div>
+  </div>
+</div>
+
+<!-- ===== Sidebar ===== -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="icon">🩺</div>
+    <div>知识卡平台</div>
+  </div>
+  <div class="user">
+    <div class="avatar">李</div>
+    <div class="info">
+      <div class="name" id="userName">--</div>
+      <div class="role" id="userRole">--</div>
+    </div>
+  </div>
+  <div class="dept"><span class="dept-dot"></span>当前：心血管内科</div>
+  <nav>
+    <div class="section">核心功能</div>
+    <div class="item active" data-page="card-list" onclick="showPage('card-list')">
+      <span>📋</span><span>卡片列表</span>
+    </div>
+    <div class="item" data-page="ai-workbench" onclick="showPage('ai-workbench')">
+      <span>🤖</span><span>AI 抽取工作台</span>
+    </div>
+    <div class="item" data-page="review-queue" onclick="showPage('review-queue')">
+      <span>✅</span><span>审核队列</span>
+      <span class="badge" id="reviewBadge">3</span>
+    </div>
+    <div class="item" data-page="settings" id="navSettings" onclick="showPage('settings')" style="display:none">
+      <span>⚙️</span><span>系统设置</span>
+    </div>
+  </nav>
+  <div class="footer">部署模块 v1.0 · 2026.08</div>
+</aside>
+
+<!-- ===== Main ===== -->
+<main class="main">
+  <div class="topbar">
+    <div class="breadcrumb" id="breadcrumb">核心功能 / <b>卡片列表</b></div>
+    <div class="search">
+      <span>🔍</span>
+      <input type="text" placeholder="搜索知识卡..." id="globalSearch" onkeyup="if(event.key==='Enter')globalSearch()">
+    </div>
+    <div class="actions">
+      <button class="icon-btn" title="刷新" onclick="refreshAll()">↻</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- ━━━ 页面1：卡片列表 ━━━ -->
+    <div class="page active" id="page-card-list">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <div class="page-title" style="margin:0">知识卡片列表</div>
+        <button class="btn btn-primary" onclick="openCreateCardModal()">＋ 手动创建卡片</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="accent-line"></div>
+          <div class="label">已定稿卡片</div>
+          <div class="value" id="stat-published">0</div>
+          <div class="trend">含共性 + 专病</div>
+        </div>
+        <div class="stat-card accent-orange">
+          <div class="accent-line"></div>
+          <div class="label">审核中</div>
+          <div class="value" id="stat-reviewing">0</div>
+          <div class="trend">含一审 + 二审</div>
+        </div>
+        <div class="stat-card accent-purple">
+          <div class="accent-line"></div>
+          <div class="label">草稿</div>
+          <div class="value" id="stat-draft">0</div>
+          <div class="trend">待补充内容</div>
+        </div>
+        <div class="stat-card accent-success">
+          <div class="accent-line"></div>
+          <div class="label">已废弃</div>
+          <div class="value" id="stat-deprecated">0</div>
+          <div class="trend">仅保留记录</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag tag-purple" style="font-size:12px">🩺 护理问题卡</span>
+
+        </div>
+        <label>状态：</label>
+        <select id="filterStatus" onchange="filterCards()">
+          <option value="">全部状态</option>
+          <option value="草稿">草稿</option>
+          <option value="一级审核中">一级审核中</option>
+          <option value="二级审核中">二级审核中</option>
+          <option value="已定稿">已定稿</option>
+          <option value="已废弃">已废弃</option>
+        </select>
+        <label>共性/专病：</label>
+        <select id="filterCommon" onchange="filterCards()">
+          <option value="">全部</option>
+          <option value="true">共性(跨病种)</option>
+          <option value="false">专病特有</option>
+        </select>
+        <input type="text" id="filterKeyword" placeholder="🔍 搜索卡片名称..." style="width:200px" oninput="filterCards()">
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>卡片名称</th><th>护理问题</th><th>病种</th><th>共性</th>
+            <th>版本</th><th>状态</th><th>最后修改</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="cardTableBody"></tbody>
+      </table>
+      <div style="margin-top:8px;font-size:12px;color:var(--text3);text-align:right">
+        共 <b id="totalCards">0</b> 条 · 单击行查看详情
+      </div>
+    </div>
+
+    <!-- ━━━ 页面2：AI 抽取工作台 ━━━ -->
+    <div class="page" id="page-ai-workbench">
+      <div class="page-title">AI 抽取工作台</div>
+      <div class="steps" id="aiSteps">
+        <div class="step active" id="step1"><span class="step-num">1</span>选择文献与方式</div>
+        <div class="step-line" id="line1"></div>
+        <div class="step" id="step2"><span class="step-num">2</span>配置提示词</div>
+        <div class="step-line" id="line2"></div>
+        <div class="step" id="step3"><span class="step-num">3</span>AI 抽取与预览</div>
+      </div>
+
+      <!-- Step 1 -->
+      <div class="card" id="ai-step1-content">
+        <div class="card-title">上传文献文件与选择目标卡片</div>
+        <div class="form-group">
+          <label>上传文献文件 <span class="required">*</span></label>
+          <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+            <div class="dz-icon">📄</div>
+            <div>点击选择或拖拽文件到此处</div>
+            <div class="dz-hint">支持 PDF / Word / Excel / TXT，单个 ≤ 20MB；文件仅用于本次抽取，24 小时后自动清理</div>
+          </div>
+          <input type="file" id="fileInput" style="display:none" onchange="handleFileSelect(this)">
+          <div id="uploadList"></div>
+        </div>
+        <div class="form-group">
+          <label>选择要迭代的目标卡片 <span class="required">*</span></label>
+          <div class="card-select-list" id="iterateCardList"></div>
+          <div class="hint" id="selectedCountTip">每次迭代一张卡片，AI 将基于文献给出优化建议</div>
+        </div>
+        <div class="form-group">
+          <label>卡片类型</label>
+          <div style="display:flex;align-items:center;gap:6px;padding:8px 0">
+            <span class="tag tag-purple">🩺 护理问题卡</span>
+            <span style="font-size:12px;color:var(--text3)">仅支持护理问题卡</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:14px">
+          <button class="btn btn-primary" onclick="aiGotoStep2()">下一步：配置提示词 →</button>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="card collapsed" id="ai-step2-content">
+        <div class="card-title">配置提示词</div>
+        <div class="form-group">
+          <label>提示词内容</label>
+          <textarea id="aiPromptText" rows="4">请基于当前文献优化现有护理问题卡内容。</textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:14px">
+          <button class="btn btn-default" onclick="aiGotoStep1()">← 上一步</button>
+          <button class="btn btn-primary" onclick="aiStartExtract()">开始 AI 抽取 →</button>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="card collapsed" id="ai-step3-content">
+        <div class="card-title">抽取结果预览 <span id="aiExtractStatus" style="font-weight:400;font-size:13px;color:var(--info)">抽取中...</span></div>
+        <div class="aiExtractResult" id="aiExtractResult">
+          <div class="empty-state">
+            <div class="icon">⏳</div>
+            <div>AI 正在抽取中，请稍候...</div>
+            <div class="tip">根据文献大小，通常需要 30-60 秒</div>
+          </div>
+        </div>
+        <div id="aiExtractActions" style="margin-top:16px;display:flex;gap:10px" class="collapsed">
+          <button class="btn btn-default" onclick="aiGotoStep2()">← 重新配置</button>
+          <button class="btn btn-success" onclick="aiConfirmDraft()">✅ 确认并生成草稿卡片</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━ 页面3：审核队列 ━━━ -->
+    <div class="page" id="page-review-queue">
+      <div class="page-title">审核队列</div>
+
+      <div class="stat-grid">
+        <div class="stat-card accent-orange">
+          <div class="accent-line"></div>
+          <div class="label">待我审核</div>
+          <div class="value" id="reviewStat-mine">0</div>
+          <div class="trend">含一审 + 二审</div>
+        </div>
+        <div class="stat-card accent-success">
+          <div class="accent-line"></div>
+          <div class="label">本月已审</div>
+          <div class="value" id="reviewStat-done">0</div>
+          <div class="trend">通过率 92%</div>
+        </div>
+        <div class="stat-card">
+          <div class="accent-line"></div>
+          <div class="label">退回修改</div>
+          <div class="value" id="reviewStat-rejected">0</div>
+          <div class="trend">需关注</div>
+        </div>
+        <div class="stat-card accent-purple">
+          <div class="accent-line"></div>
+          <div class="label">平均处理时长</div>
+          <div class="value" id="reviewStat-avg">2.3<span style="font-size:13px;color:var(--text2);font-weight:400"> 天</span></div>
+          <div class="trend">环比 -0.5 天</div>
+        </div>
+      </div>
+
+      <div class="tab-switch">
+        <div class="tab-item active" onclick="switchReviewTab('l1',this)">
+          一级待审核 <span class="tag tag-orange" id="cnt-l1">0</span>
+        </div>
+        <div class="tab-item" onclick="switchReviewTab('l2',this)">
+          二级待审核 <span class="tag tag-blue" id="cnt-l2">0</span>
+        </div>
+        <div class="tab-item" onclick="switchReviewTab('done',this)">
+          已审核 <span class="tag tag-green" id="cnt-done">0</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>卡片名称</th><th>类型</th><th>版本</th>
+            <th>提交人</th><th>提交时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="reviewTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ━━━ 页面4：系统设置 ━━━ -->
+    <div class="page" id="page-settings">
+      <div class="page-title">系统设置</div>
+
+      <div class="settings-grid">
+        <div class="card">
+          <div class="card-title">🤖 Dify 工作流</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>Base URL</label>
+              <input type="text" id="setDifyBase" placeholder="http://服务器地址/v1 或 http://服务器地址">
+            </div>
+            <div class="form-group">
+              <label>API Key <span class="tag tag-gray" id="setApiKeyState">未配置</span></label>
+              <input type="password" id="setDifyKey" placeholder="输入新的 API Key（留空则保持原值）">
+              <div class="hint" id="setApiKeyHint"></div>
+            </div>
+            <div class="form-group">
+              <label>Workflow ID</label>
+              <input type="text" id="setWorkflowId" placeholder="工作流 ID">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>超时（毫秒）</label>
+                <input type="number" id="setTimeoutMs" value="300000">
+              </div>
+              <div class="form-group">
+                <label>输出变量名</label>
+                <input type="text" id="setOutputVar" value="output">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>输入变量 · file</label>
+                <input type="text" id="setInFile" value="file">
+              </div>
+              <div class="form-group">
+                <label>输入变量 · card</label>
+                <input type="text" id="setInCard" value="card">
+              </div>
+              <div class="form-group">
+                <label>输入变量 · prompt</label>
+                <input type="text" id="setInPrompt" value="prompt">
+              </div>
+            </div>
+            <div class="field-note">工作流入参固定 3 个：file（上传文件）、card（选中卡片 JSON）、prompt（用户提示词）；变量名必须与工作流定义完全一致（当前工作流为 file / card / prompt），"测试连接"会显示实际入参。</div>
+            <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+              <button class="btn btn-default" onclick="testDify()">测试连接</button>
+            </div>
+            <div class="hint" id="setDifyTestResult" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">📄 文件与账号</div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label>最大上传（MB）</label>
+                <input type="number" id="setMaxSize" value="20">
+              </div>
+              <div class="form-group">
+                <label>临时文件保留（小时）</label>
+                <input type="number" id="setTtl" value="24">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>允许的扩展名（逗号分隔）</label>
+              <input type="text" id="setExts" value=".pdf,.docx,.xlsx,.txt">
+            </div>
+            <div class="divider"></div>
+            <div class="form-group">
+              <label>修改我的密码</label>
+              <div class="form-row">
+                <input type="password" id="pwOld" placeholder="原密码" style="flex:1">
+                <input type="password" id="pwNew" placeholder="新密码（≥6位）" style="flex:1">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-default" onclick="changePassword()">修改密码</button>
+            </div>
+            <div class="divider"></div>
+            <div class="field-note">服务端口默认 3742（config.json 中修改，需重启生效）；SSO 对接接口 /api/auth/sso 已预留。</div>
+            <div class="field-note">数据文件：data/db.json；上传文件：uploads/tmp/（超时自动清理）。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ━━━ 审核模态框（按原版设计） ━━━ -->
+<div class="modal-overlay" id="reviewModal">
+  <div class="modal large">
+    <div class="modal-header">
+      <span id="reviewModalTitle">🔍 一级审核 — 卡片名</span>
+      <span class="close" onclick="closeReviewModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="split-layout">
+        <div class="split-left">
+          <div class="card-title">卡片内容审核</div>
+          <div id="reviewModalBody"></div>
+          <div style="margin-top:16px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px">
+            <div class="form-group" style="margin:0">
+              <label>审核意见</label>
+              <textarea id="reviewComment" rows="3" placeholder="请输入您的审核意见（通过时可留空）"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="split-right">
+          <div class="ref-panel">
+            <div class="ref-header">📖 AI 引用原文对照</div>
+            <div class="ref-body" id="reviewRefBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeReviewModal()">取消</button>
+      <button class="btn btn-danger" onclick="reviewAction('退回')">↩ 退回修改</button>
+      <button class="btn btn-success" onclick="reviewAction('通过')" id="reviewPassBtn">✅ 通过 → <span id="reviewNextLabel">二级审核</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ 手动创建卡片模态框（护理问题卡 · 8 字段） ━━━ -->
+<div class="modal-overlay" id="createCardModal">
+  <div class="modal" style="width:720px">
+    <div class="modal-header">
+      <span id="createCardModalTitle">新建知识卡片</span>
+      <span class="close" onclick="closeCreateCardModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>卡片名称 <span class="required">*</span></label>
+          <input type="text" id="newCardName" placeholder="例：AMI · 心输出量减少护理">
+        </div>
+        <div class="form-group">
+          <label>卡片类型</label>
+          <div style="padding:8px 0"><span class="tag tag-purple">🩺 护理问题卡</span></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>关联病种</label>
+          <input type="text" id="newCardDisease" value="AMI（急性心肌梗死）">
+        </div>
+        <div class="form-group">
+          <label>共性/专病</label>
+          <select id="newCardIsCommon">
+            <option value="false">专病特有</option>
+            <option value="true">共性(跨病种)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>护理问题名称 <span class="required">*</span></label>
+          <input type="text" id="nc_questionName" placeholder="例：心输出量减少的护理">
+        </div>
+        <div class="form-group">
+          <label>护理目标</label>
+          <input type="text" id="nc_goal" placeholder="例：维持有效心输出量，血流动力学稳定">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>护理问题触发</label>
+        <textarea id="nc_triggerCond" rows="2" placeholder="例：HR>100bpm 或 Killip≥II级 或 BP<90/60mmHg"></textarea>
+      </div>
+      <div class="form-section-title">🩺 推荐护理措施</div>
+      <div id="measureEditor"></div>
+      <button type="button" class="btn btn-default btn-sm" onclick="addMeasureRow()">＋ 添加措施</button>
+      <div class="hint" style="font-size:11px;color:var(--text3);margin-top:6px">优先级：首优(红) / 次优(橙) / 次次优(蓝) / 多学科·辅助(紫)</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeCreateCardModal()">取消</button>
+      <button class="btn btn-success" id="saveCardBtn" onclick="saveNewCard()">保存草稿</button>
+    </div>
+  </div>
+</div>
+<!-- ━━━ 退回原因模态框 ━━━ -->
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal" style="width:440px">
+    <div class="modal-header">
+      <span>退回卡片修改</span>
+      <span class="close" onclick="closeRejectModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>退回原因 <span class="required">*</span></label>
+        <textarea id="rejectReason" rows="4" placeholder="例：3.2 节 CCU 入住标准与 2025 ESC 指南存在冲突，建议补充 GRACE 评分细则..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeRejectModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmReject()">确认退回</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ 卡片详情查看模态框 ━━━ -->
+<div class="modal-overlay" id="cardDetailModal">
+  <div class="modal large">
+    <div class="modal-header">
+      <span id="cardDetailTitle">卡片详情</span>
+      <span class="close" onclick="closeCardDetail()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div id="cardDetailBody"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeCardDetail()">关闭</button>
+      <div id="cardDetailFooter" style="display:flex;gap:10px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ Toast 容器 ━━━ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
+
