@@ -152,7 +152,7 @@ function renderCardList(data) {
         '<td><code style="font-size:12px;color:var(--text2)">' + esc(c.version) + '</code></td>' +
         '<td><span class="tag ' + (statusCls[c.status] || 'tag-gray') + '">' + (STATUS_MAP[c.status] || c.status) + '</span></td>' +
         '<td style="font-size:12px;color:var(--text2)">' + esc(String(c.updatedAt || '').substr(0, 10)) + '<br><span style="font-size:11px;color:var(--text3)">' + esc(c.updaterName || '') + '</span></td>' +
-        '<td><a onclick="event.stopPropagation();openCardDetail(\'' + c.id + '\')">详情</a> | <a onclick="event.stopPropagation();showCardActions(\'' + c.id + '\')">更多</a></td>' +
+        '<td><a onclick="event.stopPropagation();openCardDetail(\'' + c.id + '\')">详情</a></td>' +
         '</tr>';
     }).join('');
   }
@@ -168,16 +168,6 @@ function updateReviewBadge() {
   document.getElementById('reviewBadge').textContent = n;
   document.getElementById('reviewBadge').style.display = n > 0 ? '' : 'none';
 }
-function showCardActions(id) {
-  var c = CARDS.find(function (x) { return x.id === id; });
-  if (!c) return;
-  var actions = ['查看详情'];
-  if (c.status === 'draft') actions.push('编辑', '提交一审');
-  if (c.status === 'review1' || c.status === 'review2') actions.push('进入审核');
-  if (c.status === 'published') actions.push('新建版本');
-  showToast('操作菜单：' + actions.join(' / ') + '（请在详情页执行）', 'info');
-}
-
 /* ============ 卡片详情 ============ */
 function openCardDetail(id) {
   var c = CARDS.find(function (x) { return x.id === id; });
@@ -277,6 +267,7 @@ function openCreateCardModal() {
   document.getElementById('nc_goal').value = '';
   document.getElementById('nc_triggerCond').value = '';
   resetMeasureEditor();
+  resetRefEditor();
   document.getElementById('createCardModal').classList.add('show');
 }
 function openEditCardModal(c) {
@@ -290,6 +281,7 @@ function openEditCardModal(c) {
   document.getElementById('nc_goal').value = c.goal || '';
   document.getElementById('nc_triggerCond').value = c.triggerCond || '';
   resetMeasureEditor(c.measures);
+  resetRefEditor(c.refs);
   document.getElementById('createCardModal').classList.add('show');
 }
 function closeCreateCardModal() {
@@ -341,6 +333,40 @@ function collectMeasures() {
   });
   return list;
 }
+function resetRefEditor(refs) {
+  var host = document.getElementById('refEditor');
+  host.innerHTML = '';
+  (refs && refs.length ? refs : []).forEach(function (r) { addRefRow(r); });
+}
+function addRefRow(data) {
+  var host = document.getElementById('refEditor');
+  var row = document.createElement('div');
+  row.className = 'ref-row';
+  row.innerHTML =
+    '<input class="rf-title" placeholder="文献标题（必填），如：2025 ACC/AHA ACS 指南">' +
+    '<input class="rf-section" placeholder="章节，如：§4.2 疼痛管理">' +
+    '<textarea class="rf-excerpt" rows="2" placeholder="摘录/关键内容（可选）"></textarea>' +
+    '<button type="button" class="btn btn-sm btn-danger rf-del" onclick="removeRefRow(this)">✕</button>';
+  host.appendChild(row);
+  if (data) {
+    row.querySelector('.rf-title').value = data.title || '';
+    row.querySelector('.rf-section').value = data.section || '';
+    row.querySelector('.rf-excerpt').value = data.excerpt || '';
+  }
+}
+function removeRefRow(btn) {
+  btn.closest('.ref-row').remove();
+}
+function collectRefs() {
+  var list = [];
+  document.querySelectorAll('#refEditor .ref-row').forEach(function (r) {
+    var title = r.querySelector('.rf-title').value.trim();
+    var section = r.querySelector('.rf-section').value.trim();
+    var excerpt = r.querySelector('.rf-excerpt').value.trim();
+    if (title) list.push({ title: title, section: section, excerpt: excerpt });
+  });
+  return list;
+}
 function saveNewCard() {
   var name = document.getElementById('newCardName').value.trim();
   if (!name) { showToast('请填写卡名称', 'error'); return; }
@@ -353,7 +379,8 @@ function saveNewCard() {
     questionName: questionName,
     goal: document.getElementById('nc_goal').value.trim(),
     triggerCond: document.getElementById('nc_triggerCond').value.trim(),
-    measures: collectMeasures()
+    measures: collectMeasures(),
+    refs: collectRefs()
   };
   var req = editingCardId
     ? api('/cards/' + editingCardId, { method: 'PUT', body: payload })

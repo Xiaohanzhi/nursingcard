@@ -39,6 +39,7 @@ async function main() {
   // 卡片列表
   r = await req("GET", "/api/cards", null, admin);
   check("卡片列表 7 张种子", r.status === 200 && r.json.length === 7, "n=" + (r.json && r.json.length));
+  check("种子卡默认无引用来源", r.json.every(c => Array.isArray(c.refs) && c.refs.length === 0));
 
   // 创建草稿
   r = await req("POST", "/api/cards", {
@@ -52,6 +53,18 @@ async function main() {
   // 编辑草稿
   r = await req("PUT", "/api/cards/" + newId, { goal: "修改后目标" }, admin);
   check("编辑草稿卡", r.status === 200 && r.json.success);
+
+  // 引用来源：保存 / 清空
+  r = await req("PUT", "/api/cards/" + newId, { refs: [{ title: "测试文献", section: "§1", excerpt: "摘录内容" }] }, admin);
+  check("保存引用来源", r.status === 200 && r.json.success);
+  r = await req("GET", "/api/cards/" + newId, null, admin);
+  check("引用已保存", r.json.refs.length === 1 && r.json.refs[0].title === "测试文献" && r.json.refs[0].section === "§1");
+  r = await req("PUT", "/api/cards/" + newId, { refs: [{ title: "   ", section: "x" }, { title: "第二篇文献" }] }, admin);
+  r = await req("GET", "/api/cards/" + newId, null, admin);
+  check("空标题引用被丢弃且可增改", r.json.refs.length === 1 && r.json.refs[0].title === "第二篇文献");
+  r = await req("PUT", "/api/cards/" + newId, { refs: [] }, admin);
+  r = await req("GET", "/api/cards/" + newId, null, admin);
+  check("引用可清空", r.json.refs.length === 0);
 
   // 提交一审
   r = await req("POST", "/api/cards/" + newId + "/submit-review", {}, admin);
@@ -133,11 +146,15 @@ async function main() {
   const accepted = (task.result.suggestions || []).map(s => ({ field: s.field, new: s.new }));
   r = await req("POST", "/api/extract/" + extId + "/confirm", { accepted }, admin);
   check("确认生成 AI 草稿", r.status === 200 && r.json.status === "draft", "id=" + r.json.id);
+  check("AI 草稿版本为来源卡下一版", r.json.version === "v1.1", "version=" + r.json.version);
   const draftId = r.json.id;
   r = await req("GET", "/api/cards/" + draftId, null, admin);
   check("AI 草稿字段已应用", r.json.goal.includes("再灌注治疗后24小时") && r.json.aiGenerated === true);
   check("AI 草稿记录来源卡片", r.json.iterateFrom === "card7");
   check("纯文本措施已拆分为结构化数组", Array.isArray(r.json.measures) && r.json.measures.length === 1 && r.json.measures[0].measure_name === "AI 优化措施" && r.json.measures[0].activities.length === 3);
+  const refTitles = (r.json.refs || []).map(x => x.title);
+  check("AI 草稿自动关联上传文献", refTitles.includes("sample.txt"));
+  check("AI 草稿合并 AI 输出引用", refTitles.includes("急性ST段抬高型心肌梗死溶栓治疗专家共识"));
 
   // 英文键直传确认（不经过前端中文标签）
   r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "英文键测试" }, admin);
@@ -211,6 +228,10 @@ async function main() {
   check("回显形态抽取完成", task5 && task5.status === "completed");
   check("回显形态判定为非结构化", task5 && task5.result.structured === false);
   check("回显诊断标记正确", task5 && task5.result.jsonDetected === true && task5.result.echoHint === true);
+  r = await req("POST", "/api/extract/" + extId5 + "/confirm", { accepted: [] }, admin);
+  check("非结构化确认成功", r.status === 200 && r.json.status === "draft");
+  r = await req("GET", "/api/cards/" + r.json.id, null, admin);
+  check("非结构化草稿也关联上传文献", (r.json.refs || []).length >= 1 && r.json.refs[0].title === "sample.txt" && r.json.refs[0].section === "上传文献");
 
   // 形态D（字段键值映射，当前真实工作流返回）
   r = await req("POST", "/api/extract", { fileId, cardId: "card2", prompt: "KEYMAP 测试" }, admin);

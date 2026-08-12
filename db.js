@@ -41,7 +41,7 @@ function seed() {
         { priority: "次次优", name: "用药护理-镇痛药、扩血管药", activities: ["①遵医嘱扩血管", "②遵医嘱镇痛", "③监测生命体征"] },
         { priority: "多学科（辅助）", name: "多学科疼痛管理", activities: ["报告医生，必要时疼痛科会诊"] }
       ],
-      refs: [{ title: "2025 ACC/AHA ACS 指南", section: "§4.2 疼痛管理", excerpt: "对于胸痛患者，应采用PQRST方法系统评估疼痛特点，NRS≥4分需及时药物干预。" }],
+      refs: [],
       aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §4.2", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-10 09:30", updatedAt: "2026-06-10 09:30"
@@ -61,7 +61,7 @@ function seed() {
     },
     {
       id: "card3", name: "AMI · 心衰呼吸功能护理", type: "护理问题卡", disease: "AMI", isCommon: false,
-      version: "v0.2", status: "review1", scene: "CCU监护期",
+      version: "v1.0", status: "published", scene: "CCU监护期",
       questionName: "心衰：呼吸功能", goal: "呼吸困难缓解，SpO₂ ≥ 95%",
       triggerCond: "呼吸困难、呼吸频率>24次/分、SpO₂<90%、口唇发绀",
       measures: [
@@ -70,28 +70,28 @@ function seed() {
         { priority: "次次优", name: "病因治疗及诱因消除", activities: ["①消除病因", "②病因治疗"] },
         { priority: "多学科（辅助）", name: "辅助呼吸功能锻炼", activities: ["咳嗽/深呼吸/缩唇呼吸/呼吸训练器"] }
       ],
-      refs: [{ title: "2025 ACC/AHA ACS 指南", section: "§5.4 急性心衰", excerpt: "急性肺水肿患者应控制液体入量，给予利尿剂及半卧位，必要时机械通气。" }],
+      refs: [],
       aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §5.4", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u2",
       createdAt: "2026-06-16 14:30", updatedAt: "2026-06-16 14:30"
     },
     {
       id: "card4", name: "AMI · 猝死风险防范", type: "护理问题卡", disease: "AMI", isCommon: false,
-      version: "v0.5", status: "review2", scene: "CCU监护期",
+      version: "v1.0", status: "published", scene: "CCU监护期",
       questionName: "潜在并发症猝死", goal: "及早识别猝死先兆，预防猝死发生",
       triggerCond: "晕厥、频发室性早搏、短阵室速、心前区剧痛",
       measures: [
         { priority: "首优", name: "猝死的预防和抢救", activities: ["①备好急救用品", "②减少诱因"] },
         { priority: "次优", name: "病情监测", activities: ["①监测生命体征", "②评估猝死先兆", "③监测意识状态"] }
       ],
-      refs: [{ title: "2025 ACC/AHA ACS 指南", section: "§7.1 心律失常与猝死预防", excerpt: "对于室性心律失常高危患者，应持续心电监护并备好除颤设备。" }],
+      refs: [],
       aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §7.1", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-14 09:00", updatedAt: "2026-06-14 09:00"
     },
     {
       id: "card5", name: "AMI · 恶心呕吐护理", type: "护理问题卡", disease: "AMI", isCommon: false,
-      version: "v0.1", status: "draft", scene: "入院、用药期间",
+      version: "v1.0", status: "published", scene: "入院、用药期间",
       questionName: "恶心呕吐", goal: "恶心呕吐缓解，维持水电解质平衡",
       triggerCond: "恶心、上腹部不适、呕吐",
       measures: [
@@ -106,7 +106,7 @@ function seed() {
     },
     {
       id: "card6", name: "AMI · 发热护理", type: "护理问题卡", disease: "AMI", isCommon: false,
-      version: "v0.1", status: "draft", scene: "住院期间",
+      version: "v1.0", status: "published", scene: "住院期间",
       questionName: "体温高", goal: "体温降至正常（≤ 37.3℃）",
       triggerCond: "体温>37.3℃",
       measures: [
@@ -114,7 +114,7 @@ function seed() {
         { priority: "次优", name: "监测发热情况", activities: ["①选合适测温方式", "②复测体温"] },
         { priority: "次次优", name: "监测感染指标", activities: ["①血常规", "②血红蛋白"] }
       ],
-      refs: [{ title: "AMI 院内照护规范 v3.0", section: "Ch.4 感染防控", excerpt: "体温＞37.3℃应选择合适测温方式复测，动态监测血常规等感染指标。" }],
+      refs: [],
       aiGenerated: true, aiSource: "AMI 院内照护规范 v3.0 Ch.4", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u2",
       createdAt: "2026-08-06 17:00", updatedAt: "2026-08-06 17:00"
@@ -129,7 +129,7 @@ function seed() {
         { priority: "首优", name: "床旁监护与体位", activities: ["①心电监护", "②记录出入量", "③抬高床头30°"] },
         { priority: "次优", name: "活动饮食管理", activities: ["①活动休息安排", "②低盐低脂", "③每日体重"] }
       ],
-      refs: [{ title: "2025 ACC/AHA ACS 指南", section: "§6.1 心衰管理", excerpt: "对于出现心源性休克的患者，应监测心输出量并优化前负荷。" }],
+      refs: [],
       aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §6.1", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-08 14:20", updatedAt: "2026-06-08 14:20"

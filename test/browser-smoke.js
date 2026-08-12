@@ -83,7 +83,7 @@ async function main() {
 
     await evalJs("showPage('ai-workbench')");
     check("上传区存在", await evalJs("!!document.getElementById('dropzone')"));
-    check("选卡列表 5 项", await evalJs("document.querySelectorAll('#iterateCardList .card-select-item').length") === 5);
+    check("选卡列表 7 项（初始化全已定稿）", await evalJs("document.querySelectorAll('#iterateCardList .card-select-item').length") === 7);
 
     const doc = await send("DOM.getDocument");
     const q = await send("DOM.querySelector", { nodeId: doc.result.root.nodeId, selector: "#fileInput" });
@@ -110,23 +110,23 @@ async function main() {
     await sleep(1600);
     check("确认后回到列表", await evalJs("document.querySelector('.page.active').id") === "page-card-list");
     check("列表出现 AI 草稿（8 张）", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 8);
+    await evalJs("var c=CARDS.find(function(x){return x.aiGenerated;}); if(c) openCardDetail(c.id)");
+    check("AI 草稿详情自动关联上传文献", await evalJs("document.getElementById('cardDetailBody').textContent.includes('sample.txt') && document.getElementById('cardDetailBody').textContent.includes('溶栓治疗专家共识')"));
+    await evalJs("closeCardDetail()");
 
     await evalJs("openCreateCardModal()");
     check("创建模态框标题", await evalJs("document.getElementById('createCardModalTitle').textContent") === "新建知识卡片");
-    await evalJs("document.getElementById('newCardName').value='冒烟测试卡'; document.getElementById('nc_questionName').value='冒烟问题'; saveNewCard()");
+    await evalJs("document.getElementById('newCardName').value='冒烟测试卡'; document.getElementById('nc_questionName').value='冒烟问题'; addRefRow(); document.querySelector('#refEditor .rf-title').value='冒烟文献'; document.querySelector('#refEditor .rf-section').value='§1'; saveNewCard()");
     await sleep(800);
     check("创建后列表 9 张", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 9);
+    await evalJs("var c=CARDS.find(function(x){return x.name==='冒烟测试卡';}); if(c) openCardDetail(c.id)");
+    check("详情显示手动添加的引用", await evalJs("document.getElementById('cardDetailBody').textContent.includes('冒烟文献')"));
+    await evalJs("closeCardDetail()");
 
     await evalJs("showPage('review-queue')");
     await sleep(800);
-    check("一审队列 1 条", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 1);
-    await evalJs("openReviewPanel('card3')");
-    check("审核面板打开", await evalJs("document.getElementById('reviewModal').classList.contains('show')"));
-    await evalJs("reviewAction('通过')");
-    await sleep(1000);
-    await evalJs("switchReviewTab('l2')");
-    await sleep(800);
-    check("二审队列 2 条", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 2);
+    check("一审队列空（初始化全已定稿，仅空态行）", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 1);
+    check("一审队列空态提示", await evalJs("document.getElementById('reviewTableBody').textContent.includes('队列已清空')"));
 
     await evalJs("showPage('settings')");
     await sleep(800);

@@ -108,7 +108,7 @@ app.get("/api/cards", auth, (req, res) => {
 });
 
 app.post("/api/cards", auth, requireRole("engineer", "admin"), (req, res) => {
-  const { name, disease, isCommon, questionName, goal, triggerCond, measures } = req.body || {};
+  const { name, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
   if (!name || !questionName) return res.status(400).json({ error: "卡片名称和护理问题名称为必填" });
   const card = {
     id: dbLib.nextId("kc"),
@@ -116,7 +116,7 @@ app.post("/api/cards", auth, requireRole("engineer", "admin"), (req, res) => {
     version: "v0.1", status: "draft", scene: "待编辑",
     questionName, goal: goal || "", triggerCond: triggerCond || "",
     measures: Array.isArray(measures) ? measures : [],
-    refs: [], aiGenerated: false, aiSource: "", iterateFrom: "",
+    refs: Array.isArray(refs) ? normalizeRefs(refs) : [], aiGenerated: false, aiSource: "", iterateFrom: "",
     rejectReason: "", createdBy: req.user.id, updatedBy: req.user.id,
     createdAt: dbLib.now(), updatedAt: dbLib.now()
   };
@@ -135,7 +135,7 @@ app.put("/api/cards/:id", auth, requireRole("engineer", "admin"), (req, res) => 
   const c = db().cards.find(x => x.id === req.params.id);
   if (!c) return res.status(404).json({ error: "卡片不存在" });
   if (c.status !== "draft") return res.status(400).json({ error: "仅草稿状态可编辑" });
-  const { name, disease, isCommon, questionName, goal, triggerCond, measures } = req.body || {};
+  const { name, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
   if (name) c.name = name;
   if (disease !== undefined) c.disease = disease;
   if (isCommon !== undefined) c.isCommon = !!isCommon;
@@ -143,6 +143,7 @@ app.put("/api/cards/:id", auth, requireRole("engineer", "admin"), (req, res) => 
   if (goal !== undefined) c.goal = goal;
   if (triggerCond !== undefined) c.triggerCond = triggerCond;
   if (measures !== undefined) c.measures = Array.isArray(measures) ? measures : c.measures;
+  if (refs !== undefined) c.refs = Array.isArray(refs) ? normalizeRefs(refs) : c.refs;
   c.updatedBy = req.user.id;
   c.updatedAt = dbLib.now();
   dbLib.saveDb();
@@ -200,9 +201,9 @@ app.post("/api/cards/:id/review", auth, (req, res) => {
   if (action === "approve") {
     if (lv === 1) {
       c.status = "review2";
-    } else {
+  } else {
       c.status = "published";
-      c.version = bumpMajor(c.version);
+      c.version = c.version === "v0.1" ? "v1.0" : c.version;
       c.rejectReason = "";
     }
   } else {
@@ -408,14 +409,25 @@ function applyField(card, field, value) {
   }
 }
 
-function mergeRefs(a, b) {
+function normalizeRefs(refs) {
+  return (refs || []).map(r => ({
+    title: String(r.title || "").trim(),
+    section: String(r.section || "").trim(),
+    excerpt: String(r.excerpt || "").trim()
+  })).filter(r => r.title);
+}
+
+function mergeRefs() {
   const seen = new Set();
   const out = [];
-  [].concat(a || [], b || []).forEach(r => {
-    const key = (r.title || "") + "|" + (r.section || "");
-    if (!r || !r.title || seen.has(key)) return;
-    seen.add(key);
-    out.push({ title: r.title, section: r.section || "", excerpt: r.excerpt || "" });
+  Array.from(arguments).forEach(arr => {
+    (arr || []).forEach(r => {
+      if (!r || !r.title) return;
+      const key = (r.title || "") + "|" + (r.section || "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ title: r.title, section: r.section || "", excerpt: r.excerpt || "" });
+    });
   });
   return out;
 }
@@ -428,21 +440,23 @@ app.post("/api/extract/:id/confirm", auth, requireRole("engineer", "admin"), (re
   if (!target) return res.status(400).json({ error: "目标卡片不存在" });
   const base = JSON.parse(JSON.stringify(target));
   const accepted = Array.isArray(req.body.accepted) ? req.body.accepted : [];
+  const fileName = task.fileName || "";
+  const uploadRef = fileName ? { title: fileName, section: "上传文献", excerpt: "" } : null;
 
   if (task.result && task.result.structured) {
     accepted.forEach(a => applyField(base, a.field, a.new));
     const aiRefs = (task.result.refs || []).map(r => ({ title: r.title || "AI 抽取", section: r.section || "", excerpt: r.excerpt || "" }));
-    base.refs = mergeRefs(base.refs, aiRefs);
+    base.refs = mergeRefs(base.refs, uploadRef ? [uploadRef] : [], aiRefs);
   } else {
     base.refs = mergeRefs(base.refs, [{
-      title: task.fileName || "AI 抽取原文",
-      section: "AI 抽取结果",
+      title: fileName || "AI 抽取原文",
+      section: "上传文献",
       excerpt: String(task.resultRaw || "").slice(0, 500)
     }]);
   }
 
   base.id = dbLib.nextId("kc");
-  base.version = "v0.1";
+  base.version = bumpMinor(target.version);
   base.status = "draft";
   base.aiGenerated = true;
   base.aiSource = task.fileName || "AI 抽取";
@@ -454,7 +468,7 @@ app.post("/api/extract/:id/confirm", auth, requireRole("engineer", "admin"), (re
   base.updatedAt = dbLib.now();
   db().cards.unshift(base);
   dbLib.saveDb();
-  res.json({ id: base.id, status: "draft", version: "v0.1", name: base.name });
+  res.json({ id: base.id, status: "draft", version: base.version, name: base.name });
 });
 
 /* ============ 系统设置 ============ */
@@ -542,11 +556,6 @@ app.get("*", (req, res) => {
 function bumpMinor(v) {
   const m = String(v || "").match(/v(\d+)\.(\d+)/);
   return m ? "v" + m[1] + "." + (parseInt(m[2], 10) + 1) : "v0.1";
-}
-
-function bumpMajor(v) {
-  const m = String(v || "").match(/v(\d+)\.(\d+)/);
-  return m ? "v" + (parseInt(m[1], 10) + 1) + ".0" : "v1.0";
 }
 
 function cleanupOldFiles() {

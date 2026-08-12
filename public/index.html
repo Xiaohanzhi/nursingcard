@@ -60,12 +60,6 @@ button{font-family:inherit}
 .sidebar .user .info{line-height:1.3;min-width:0}
 .sidebar .user .name{font-weight:600}
 .sidebar .user .role{font-size:11px;color:rgba(255,255,255,.45);margin-top:2px}
-.sidebar .dept{
-  padding:12px 20px;font-size:12px;color:rgba(255,255,255,.55);
-  border-bottom:1px solid rgba(255,255,255,.08);
-  display:flex;align-items:center;gap:6px;
-}
-.sidebar .dept .dept-dot{width:6px;height:6px;border-radius:50%;background:#14B8A6}
 .sidebar nav{flex:1;padding:8px 0;overflow-y:auto}
 .sidebar nav .section{
   font-size:10px;color:rgba(255,255,255,.3);
@@ -91,6 +85,13 @@ button{font-family:inherit}
   padding:14px 20px;font-size:11px;color:rgba(255,255,255,.35);
   border-top:1px solid rgba(255,255,255,.08);
 }
+.logout-btn{
+  background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);
+  border:1px solid rgba(255,255,255,.15);border-radius:4px;
+  padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit;
+  transition:all var(--transition);
+}
+.logout-btn:hover{background:rgba(255,255,255,.16);color:#fff}
 
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .topbar{
@@ -567,6 +568,22 @@ table a:hover{text-decoration:underline}
 .measure-row .ms-priority:focus,.measure-row .ms-name:focus,.measure-row .ms-activities:focus{
   outline:none;border-color:var(--primary);
 }
+
+/* ===== 引用来源编辑器 ===== */
+.ref-row{
+  display:grid;grid-template-columns:1.2fr 1fr 2fr 34px;gap:8px;align-items:start;
+  margin-bottom:10px;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px;
+}
+.ref-row input,.ref-row textarea{
+  width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:8px 10px;font-size:13px;color:var(--text);background:var(--surface);
+  font-family:inherit;outline:none;
+}
+.ref-row textarea{resize:vertical;min-height:38px;line-height:1.5}
+.ref-row input:focus,.ref-row textarea:focus{border-color:var(--primary)}
+.ref-row .rf-del{align-self:start}
+
 /* ===== 登录页 ===== */
 .login-overlay{
   position:fixed;inset:0;z-index:1000;
@@ -583,7 +600,6 @@ table a:hover{text-decoration:underline}
   width:38px;height:38px;border-radius:10px;background:var(--primary);
   color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;
 }
-.login-card .login-sub{font-size:12px;color:var(--text3);margin:6px 0 22px}
 .login-card .login-err{font-size:12px;color:var(--danger);min-height:18px;margin-bottom:8px}
 .login-card .login-hint{
   margin-top:16px;font-size:11px;color:var(--text3);line-height:1.8;
@@ -638,7 +654,6 @@ table a:hover{text-decoration:underline}
 <div class="login-overlay hidden" id="loginPage">
   <div class="login-card">
     <div class="login-logo"><div class="icon">🩺</div>专科知识卡平台</div>
-    <div class="login-sub">轻量部署模块 · 知识治理</div>
     <div class="form-group">
       <label>用户名</label>
       <input id="loginUser" value="admin">
@@ -666,7 +681,6 @@ table a:hover{text-decoration:underline}
       <div class="role" id="userRole">--</div>
     </div>
   </div>
-  <div class="dept"><span class="dept-dot"></span>当前：心血管内科</div>
   <nav>
     <div class="section">核心功能</div>
     <div class="item active" data-page="card-list" onclick="showPage('card-list')">
@@ -683,7 +697,9 @@ table a:hover{text-decoration:underline}
       <span>⚙️</span><span>系统设置</span>
     </div>
   </nav>
-  <div class="footer">部署模块 v1.0 · 2026.08</div>
+  <div class="footer">
+    <button class="logout-btn" style="width:100%" onclick="logout()">退出登录</button>
+  </div>
 </aside>
 
 <!-- ===== Main ===== -->
@@ -741,11 +757,11 @@ table a:hover{text-decoration:underline}
         <label>状态：</label>
         <select id="filterStatus" onchange="filterCards()">
           <option value="">全部状态</option>
-          <option value="草稿">草稿</option>
-          <option value="一级审核中">一级审核中</option>
-          <option value="二级审核中">二级审核中</option>
-          <option value="已定稿">已定稿</option>
-          <option value="已废弃">已废弃</option>
+          <option value="draft">草稿</option>
+          <option value="review1">一级审核中</option>
+          <option value="review2">二级审核中</option>
+          <option value="published">已定稿</option>
+          <option value="deprecated">已废弃</option>
         </select>
         <label>共性/专病：</label>
         <select id="filterCommon" onchange="filterCards()">
@@ -1071,6 +1087,10 @@ table a:hover{text-decoration:underline}
       <div id="measureEditor"></div>
       <button type="button" class="btn btn-default btn-sm" onclick="addMeasureRow()">＋ 添加措施</button>
       <div class="hint" style="font-size:11px;color:var(--text3);margin-top:6px">优先级：首优(红) / 次优(橙) / 次次优(蓝) / 多学科·辅助(紫)</div>
+      <div class="form-section-title">📖 引用来源</div>
+      <div id="refEditor"></div>
+      <button type="button" class="btn btn-default btn-sm" onclick="addRefRow()">＋ 添加引用</button>
+      <div class="hint" style="font-size:11px;color:var(--text3);margin-top:6px">可手动维护文献引用；AI 优化确认后会自动关联上传文献</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-default" onclick="closeCreateCardModal()">取消</button>
