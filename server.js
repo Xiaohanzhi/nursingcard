@@ -229,6 +229,38 @@ app.get("/api/review/history", auth, (req, res) => {
   res.json(list.map(cardPublic));
 });
 
+/* ============ 知识卡聚合内容接口 ============ */
+function formatCard(c) {
+  const parts = [];
+  parts.push("护理问题：" + (c.questionName || ""));
+  parts.push("护理目标：" + (c.goal || ""));
+  parts.push("触发逻辑：" + (c.triggerCond || ""));
+  const measures = (c.measures || []).map(m =>
+    (m.priority || "") + "护理措施：" + (m.name || "") + "（" + (m.activities || []).join("；") + "）"
+  ).filter(s => s.indexOf("护理措施：（）") === -1);
+  if (measures.length) parts.push("推荐护理措施：" + measures.join("；"));
+  return parts.join("；");
+}
+
+function buildKnowledgeAggregate(cards) {
+  return cards.map((c, i) => "【卡片" + (i + 1) + "】" + formatCard(c)).join("\n");
+}
+
+app.get("/api/linkage/cards", auth, (req, res) => {
+  const list = db().cards.filter(c => c.status === "published")
+    .slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
+    .map(c => ({ id: c.id, name: c.name, questionName: c.questionName, version: c.version }));
+  res.json(list);
+});
+
+app.get("/api/linkage/content", auth, (req, res) => {
+  let list = db().cards.filter(c => c.status === "published")
+    .slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const ids = String(req.query.cardIds || "").split(",").map(s => s.trim()).filter(Boolean);
+  if (ids.length) list = list.filter(c => ids.includes(c.id));
+  res.json({ count: list.length, cardIds: list.map(c => c.id), content: buildKnowledgeAggregate(list) });
+});
+
 /* ============ 文件上传 ============ */
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),

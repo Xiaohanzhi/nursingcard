@@ -50,6 +50,38 @@ JSON 输入/输出契约详见 [docs/dify-contract.md](docs/dify-contract.md)。
 
 `files` 配置：`maxSizeMb`（默认20）、`allowedExtensions`（默认 pdf/docx/xlsx/txt）、`ttlHours`（临时文件保留小时数，默认24）。
 
+## 知识卡聚合内容接口
+
+将当前已定稿的护理问题卡按统一模板聚合为"总知识卡内容"文本，供外部调用（如自行对接其他 Dify 工作流）。
+
+先登录获取 token：
+```bash
+curl -X POST http://服务器:3742/api/auth/login -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+获取已定稿卡列表：
+```bash
+curl http://服务器:3742/api/linkage/cards -H "Authorization: Bearer <token>"
+```
+
+获取聚合内容（默认全部已定稿卡，可按 cardIds 选择子集）：
+```bash
+curl "http://服务器:3742/api/linkage/content" -H "Authorization: Bearer <token>"
+curl "http://服务器:3742/api/linkage/content?cardIds=card1,card2" -H "Authorization: Bearer <token>"
+```
+
+返回示例：
+```json
+{
+  "count": 2,
+  "cardIds": ["card1", "card2"],
+  "content": "【卡片1】护理问题：疼痛；护理目标：疼痛缓解，NRS 评分 ≤ 3 分；触发逻辑：NRS评分≥4分、上腹痛、牙痛、心前区压榨样疼痛；推荐护理措施：首优护理措施：休息与活动（①绝对卧床；②指导避免增加腹压动作）……\n【卡片2】护理问题：活动无耐力；护理目标：活动耐力提高，活动时无明显不适；……"
+}
+```
+
+说明：内容按最后修改时间倒序（最新在前）；非法 cardIds 自动忽略；本接口不调用任何 Dify 流程。
+
 ## 对接现有系统
 - **反向代理**（nginx 示例）：
   ```nginx

@@ -41,6 +41,22 @@ async function main() {
   check("卡片列表 7 张种子", r.status === 200 && r.json.length === 7, "n=" + (r.json && r.json.length));
   check("种子卡默认无引用来源", r.json.every(c => Array.isArray(c.refs) && c.refs.length === 0));
 
+  // 知识卡聚合内容接口
+  r = await req("GET", "/api/linkage/cards", null, admin);
+  check("联动卡片列表 7 张已定稿", r.status === 200 && r.json.length === 7);
+  r = await req("GET", "/api/linkage/content", null, admin);
+  check("聚合内容默认全量", r.status === 200 && r.json.count === 7 &&
+    r.json.content.includes("护理问题：") && r.json.content.includes("护理目标：") &&
+    r.json.content.includes("触发逻辑：") && r.json.content.includes("推荐护理措施：") &&
+    r.json.content.includes("首优护理措施：") && r.json.content.includes("【卡片1】"));
+  r = await req("GET", "/api/linkage/content?cardIds=card1,card2", null, admin);
+  check("聚合内容子集生效", r.status === 200 && r.json.count === 2 &&
+    r.json.content.includes("【卡片1】") && r.json.content.includes("【卡片2】"));
+  r = await req("GET", "/api/linkage/content?cardIds=card1,notexist", null, admin);
+  check("非法 id 被忽略", r.status === 200 && r.json.count === 1);
+  r = await req("GET", "/api/linkage/content", null, null);
+  check("未登录访问聚合接口返回 401", r.status === 401);
+
   // 创建草稿
   r = await req("POST", "/api/cards", {
     name: "测试卡·新建", disease: "AMI", isCommon: false,
