@@ -92,8 +92,8 @@ function showPage(name) {
   });
   var titles = {
     'card-list': '核心功能 / 卡片列表',
-    'ai-workbench': '核心功能 / AI 抽取工作台',
-    'review-queue': '核心功能 / 审核队列',
+    'ai-workbench': '核心功能 / AI优化卡片',
+    'review-queue': '核心功能 / 卡片审核',
     'settings': '系统 / 系统设置'
   };
   document.getElementById('breadcrumb').innerHTML = (titles[name] || name).replace(/([^\/]+)$/, '<b>$1</b>');
@@ -392,7 +392,7 @@ function saveNewCard() {
   }).catch(showErr);
 }
 
-/* ============ 审核队列 ============ */
+/* ============ 卡片审核 ============ */
 function switchReviewTab(level, el) {
   currentReviewTab = level;
   document.querySelectorAll('.tab-item').forEach(function (t) { t.classList.remove('active'); });
@@ -525,7 +525,7 @@ function confirmReject() {
     }).catch(showErr);
 }
 
-/* ============ AI 抽取工作台 ============ */
+/* ============ AI 优化卡片 ============ */
 function handleFileSelect(input) {
   var f = input.files && input.files[0];
   if (!f) return;
@@ -617,7 +617,7 @@ function aiStartExtract() {
       document.getElementById('step3').classList.add('active');
       document.getElementById('ai-step3-content').classList.remove('collapsed');
       document.getElementById('aiExtractActions').classList.add('collapsed');
-      document.getElementById('aiExtractStatus').textContent = '抽取中...';
+    document.getElementById('aiExtractStatus').textContent = '优化中...';
       document.getElementById('aiExtractStatus').style.color = 'var(--info)';
       document.getElementById('aiExtractResult').innerHTML =
         '<div class="ai-loading"><div class="spinner"></div>' +
@@ -636,19 +636,19 @@ function pollExtractTask(id) {
         currentTask = task;
         if (task.status === 'completed') {
           clearInterval(pollTimer);
-          document.getElementById('aiExtractStatus').textContent = '抽取完成';
+          document.getElementById('aiExtractStatus').textContent = '优化完成';
           document.getElementById('aiExtractStatus').style.color = 'var(--success)';
           renderExtractResult(task);
         } else if (task.status === 'failed') {
           clearInterval(pollTimer);
-          document.getElementById('aiExtractStatus').textContent = '抽取失败';
+          document.getElementById('aiExtractStatus').textContent = '优化失败';
           document.getElementById('aiExtractStatus').style.color = 'var(--danger)';
           renderExtractFailed(task);
         } else {
           n++;
           if (n > 300) {
             clearInterval(pollTimer);
-            showToast('抽取超时，请稍后重试', 'error');
+            showToast('优化超时，请稍后重试', 'error');
           }
         }
       })
@@ -660,7 +660,7 @@ function pollExtractTask(id) {
 }
 function renderExtractFailed(task) {
   document.getElementById('aiExtractResult').innerHTML =
-    '<div class="empty-state"><div class="icon">⚠️</div><div>抽取失败</div><div class="tip">' + esc(task.error || '未知错误') + '</div></div>';
+    '<div class="empty-state"><div class="icon">⚠️</div><div>优化失败</div><div class="tip">' + esc(task.error || '未知错误') + '</div></div>';
   document.getElementById('aiExtractActions').classList.remove('collapsed');
 }
 function renderExtractResult(task) {

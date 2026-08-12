@@ -6,8 +6,8 @@
 <title>专科知识卡平台 · MVP 原型</title>
 <style>
 :root{
-  --primary:#0A6E6E;--primary-light:#E6F2F2;--primary-bg:#EEF7F4;
-  --primary-hover:#08595A;
+  --primary:#08979C;--primary-light:#E6F7F8;--primary-bg:#EDF8F9;
+  --primary-hover:#06777B;
   --bg:#F8F7F4;--surface:#FFFFFF;--border:#EBE9E4;
   --text:#1A1A18;--text2:#787774;--text3:#A8A6A0;
   --danger:#E0533D;--danger-bg:#FEF2F0;
@@ -16,7 +16,7 @@
   --success:#2D8C4A;--success-bg:#EEF7F2;
   --info:#3B7DD8;--info-bg:#EEF4FB;
   --purple:#6B4E9B;--purple-bg:#F4F0FA;
-  --sidebar:#0D3B3B;
+  --sidebar:#064C50;
   --radius:8px;--radius-sm:6px;--radius-xs:4px;
   --shadow:0 1px 2px rgba(0,0,0,.04);
   --shadow-hover:0 4px 14px rgba(0,0,0,.08);
@@ -35,7 +35,7 @@ button{font-family:inherit}
 
 /* ===== Sidebar ===== */
 .sidebar{
-  width:220px;background:linear-gradient(180deg,var(--sidebar),#0A5454);
+  width:220px;background:linear-gradient(180deg,var(--sidebar),#08979C);
   color:#fff;display:flex;flex-direction:column;flex-shrink:0;
 }
 .sidebar .logo{
@@ -75,7 +75,7 @@ button{font-family:inherit}
 }
 .sidebar nav .item:hover{background:rgba(255,255,255,.05);color:#fff}
 .sidebar nav .item.active{
-  background:rgba(20,184,166,.18);color:#fff;border-left-color:#14B8A6;
+  background:rgba(8,151,156,.20);color:#fff;border-left-color:#2AB8BC;
 }
 .sidebar nav .item .badge{
   background:var(--danger);color:#fff;font-size:10px;
@@ -587,7 +587,7 @@ table a:hover{text-decoration:underline}
 /* ===== 登录页 ===== */
 .login-overlay{
   position:fixed;inset:0;z-index:1000;
-  background:linear-gradient(135deg,#0D3B3B 0%,#0A6E6E 100%);
+  background:linear-gradient(135deg,#064C50 0%,#08979C 100%);
   display:flex;align-items:center;justify-content:center;
 }
 .login-overlay.hidden{display:none}
@@ -687,10 +687,10 @@ table a:hover{text-decoration:underline}
       <span>📋</span><span>卡片列表</span>
     </div>
     <div class="item" data-page="ai-workbench" onclick="showPage('ai-workbench')">
-      <span>🤖</span><span>AI 抽取工作台</span>
+      <span>🤖</span><span>AI优化卡片</span>
     </div>
     <div class="item" data-page="review-queue" onclick="showPage('review-queue')">
-      <span>✅</span><span>审核队列</span>
+      <span>✅</span><span>卡片审核</span>
       <span class="badge" id="reviewBadge">3</span>
     </div>
     <div class="item" data-page="settings" id="navSettings" onclick="showPage('settings')" style="display:none">
@@ -786,15 +786,15 @@ table a:hover{text-decoration:underline}
       </div>
     </div>
 
-    <!-- ━━━ 页面2：AI 抽取工作台 ━━━ -->
+    <!-- ━━━ 页面2：AI 优化卡片 ━━━ -->
     <div class="page" id="page-ai-workbench">
-      <div class="page-title">AI 抽取工作台</div>
+      <div class="page-title">AI优化卡片</div>
       <div class="steps" id="aiSteps">
         <div class="step active" id="step1"><span class="step-num">1</span>选择文献与方式</div>
         <div class="step-line" id="line1"></div>
         <div class="step" id="step2"><span class="step-num">2</span>配置提示词</div>
         <div class="step-line" id="line2"></div>
-        <div class="step" id="step3"><span class="step-num">3</span>AI 抽取与预览</div>
+        <div class="step" id="step3"><span class="step-num">3</span>AI 优化与预览</div>
       </div>
 
       <!-- Step 1 -->
@@ -819,7 +819,6 @@ table a:hover{text-decoration:underline}
           <label>卡片类型</label>
           <div style="display:flex;align-items:center;gap:6px;padding:8px 0">
             <span class="tag tag-purple">🩺 护理问题卡</span>
-            <span style="font-size:12px;color:var(--text3)">仅支持护理问题卡</span>
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:14px">
@@ -836,17 +835,17 @@ table a:hover{text-decoration:underline}
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:14px">
           <button class="btn btn-default" onclick="aiGotoStep1()">← 上一步</button>
-          <button class="btn btn-primary" onclick="aiStartExtract()">开始 AI 抽取 →</button>
+          <button class="btn btn-primary" onclick="aiStartExtract()">开始 AI 优化 →</button>
         </div>
       </div>
 
       <!-- Step 3 -->
       <div class="card collapsed" id="ai-step3-content">
-        <div class="card-title">抽取结果预览 <span id="aiExtractStatus" style="font-weight:400;font-size:13px;color:var(--info)">抽取中...</span></div>
+        <div class="card-title">优化结果预览 <span id="aiExtractStatus" style="font-weight:400;font-size:13px;color:var(--info)">优化中...</span></div>
         <div class="aiExtractResult" id="aiExtractResult">
           <div class="empty-state">
             <div class="icon">⏳</div>
-            <div>AI 正在抽取中，请稍候...</div>
+            <div>AI 正在优化中，请稍候...</div>
             <div class="tip">根据文献大小，通常需要 30-60 秒</div>
           </div>
         </div>
@@ -857,9 +856,9 @@ table a:hover{text-decoration:underline}
       </div>
     </div>
 
-    <!-- ━━━ 页面3：审核队列 ━━━ -->
+    <!-- ━━━ 页面3：卡片审核 ━━━ -->
     <div class="page" id="page-review-queue">
-      <div class="page-title">审核队列</div>
+      <div class="page-title">卡片审核</div>
 
       <div class="stat-grid">
         <div class="stat-card accent-orange">
