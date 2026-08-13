@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const DATA_DIR = path.join(__dirname, "data");
 const DB_PATH = path.join(DATA_DIR, "db.json");
 const UPLOAD_DIR = path.join(__dirname, "uploads", "tmp");
+const LITERATURE_DIR = path.join(__dirname, "uploads", "literature");
 
 let state = null;
 
@@ -42,7 +43,7 @@ function seed() {
         { priority: "多学科（辅助）", name: "多学科疼痛管理", activities: ["报告医生，必要时疼痛科会诊"] }
       ],
       refs: [],
-      aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §4.2", iterateFrom: "",
+      aiGenerated: false, aiSource: "", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-10 09:30", updatedAt: "2026-06-10 09:30"
     },
@@ -71,7 +72,7 @@ function seed() {
         { priority: "多学科（辅助）", name: "辅助呼吸功能锻炼", activities: ["咳嗽/深呼吸/缩唇呼吸/呼吸训练器"] }
       ],
       refs: [],
-      aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §5.4", iterateFrom: "",
+      aiGenerated: false, aiSource: "", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u2",
       createdAt: "2026-06-16 14:30", updatedAt: "2026-06-16 14:30"
     },
@@ -85,7 +86,7 @@ function seed() {
         { priority: "次优", name: "病情监测", activities: ["①监测生命体征", "②评估猝死先兆", "③监测意识状态"] }
       ],
       refs: [],
-      aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §7.1", iterateFrom: "",
+      aiGenerated: false, aiSource: "", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-14 09:00", updatedAt: "2026-06-14 09:00"
     },
@@ -115,7 +116,7 @@ function seed() {
         { priority: "次次优", name: "监测感染指标", activities: ["①血常规", "②血红蛋白"] }
       ],
       refs: [],
-      aiGenerated: true, aiSource: "AMI 院内照护规范 v3.0 Ch.4", iterateFrom: "",
+      aiGenerated: false, aiSource: "", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u2",
       createdAt: "2026-08-06 17:00", updatedAt: "2026-08-06 17:00"
     },
@@ -130,18 +131,19 @@ function seed() {
         { priority: "次优", name: "活动饮食管理", activities: ["①活动休息安排", "②低盐低脂", "③每日体重"] }
       ],
       refs: [],
-      aiGenerated: true, aiSource: "2025 ACC/AHA ACS 指南 §6.1", iterateFrom: "",
+      aiGenerated: false, aiSource: "", iterateFrom: "",
       rejectReason: "", createdBy: "u2", updatedBy: "u3",
       createdAt: "2026-06-08 14:20", updatedAt: "2026-06-08 14:20"
     }
   ];
 
-  return { version: 1, users, cards, extractTasks: [], uploadedFiles: [] };
+  return { version: 2, users, cards, extractTasks: [], uploadedFiles: [], literature: [] };
 }
 
 function initDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  if (!fs.existsSync(LITERATURE_DIR)) fs.mkdirSync(LITERATURE_DIR, { recursive: true });
   if (fs.existsSync(DB_PATH)) {
     try { state = JSON.parse(fs.readFileSync(DB_PATH, "utf8")); }
     catch (e) { state = seed(); }
@@ -149,6 +151,8 @@ function initDb() {
     if (!state.cards) state.cards = [];
     if (!state.extractTasks) state.extractTasks = [];
     if (!state.uploadedFiles) state.uploadedFiles = [];
+    if (!state.literature) state.literature = [];
+    if (state.version !== 2) state.version = 2;
   } else {
     state = seed();
   }
@@ -167,4 +171,4 @@ function saveDb() {
   fs.renameSync(tmp, DB_PATH);
 }
 
-module.exports = { initDb, getDb, saveDb, nextId, now, UPLOAD_DIR };
+module.exports = { initDb, getDb, saveDb, nextId, now, UPLOAD_DIR, LITERATURE_DIR };

@@ -1,6 +1,6 @@
 # 专科知识卡平台 · 轻量部署模块
 
-单 Node.js 服务：卡片列表 / AI优化卡片（调用 Dify 工作流）/ 卡片审核 / 系统设置。
+单 Node.js 服务：卡片列表 / AI优化卡片（调用 Dify 工作流）/ 文献管理 / 卡片审核 / 系统设置。
 
 ## 环境要求
 - Node.js 18+（建议 20+，本模块在 Node 24 上验证）
@@ -49,6 +49,18 @@ JSON 输入/输出契约详见 [docs/dify-contract.md](docs/dify-contract.md)。
 - `PORT`、`JWT_SECRET`、`DIFY_BASE_URL`、`DIFY_API_KEY`、`DIFY_WORKFLOW_ID`
 
 `files` 配置：`maxSizeMb`（默认20）、`allowedExtensions`（默认 pdf/docx/xlsx/txt）、`ttlHours`（临时文件保留小时数，默认24）。
+
+## 文献管理
+
+上传的文献永久保存在 `uploads/literature/`（登记于 `data/db.json` 的 `literature`），可在"文献管理"页统一查看/搜索/下载/删除；AI优化卡片可直接选择文献库文献或上传新文献（自动入库）。
+
+- `POST /api/literature`：上传（multipart，字段名 `file`）
+- `GET /api/literature?keyword=`：列表/搜索
+- `GET /api/literature/:id/download`：下载
+- `DELETE /api/literature/:id`：删除
+- `POST /api/settings/cleanup`（管理员）：手动触发临时文件清理
+
+`uploads/tmp/` 仅作过渡目录，超期（`ttlHours`）文件由启动与每小时任务扫描清理，不影响文献库。
 
 ## 知识卡聚合内容接口
 

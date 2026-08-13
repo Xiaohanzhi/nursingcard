@@ -4,7 +4,6 @@
 var TOKEN = localStorage.getItem('kc_token') || '';
 var CURRENT_USER = null;
 var CARDS = [];
-var UPLOADS = [];
 var selectedFileId = '';
 var selectedCardId = '';
 var currentReviewTab = 'l1';
@@ -13,8 +12,18 @@ var currentTask = null;
 var editingCardId = null;
 var pollTimer = null;
 
-var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿', deprecated: '已废弃' };
+var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿' };
 var ROLE_MAP = { admin: '管理员', engineer: '知识工程师', reviewer1: '一审审核员', reviewer2: '二审审核员', viewer: '查看者' };
+var TYPE_CLASS = {
+  '护理问题卡': 'tag-purple',
+  '评估卡': 'tag-blue',
+  '风险预警卡': 'tag-red',
+  '宣教卡': 'tag-green',
+  '应急预案卡': 'tag-orange',
+  '交接班卡': 'tag-gray',
+  '随访卡': 'tag-blue'
+};
+function typeTagOf(t) { return TYPE_CLASS[t] || 'tag-gray'; }
 
 function esc(s) {
   if (s === null || s === undefined) return '';
@@ -93,12 +102,14 @@ function showPage(name) {
   var titles = {
     'card-list': '核心功能 / 卡片列表',
     'ai-workbench': '核心功能 / AI优化卡片',
+    'literature': '核心功能 / 文献管理',
     'review-queue': '核心功能 / 卡片审核',
     'settings': '系统 / 系统设置'
   };
   document.getElementById('breadcrumb').innerHTML = (titles[name] || name).replace(/([^\/]+)$/, '<b>$1</b>');
   if (name === 'card-list') { loadCards(); }
-  if (name === 'ai-workbench') { renderIterateCardList(); }
+  if (name === 'ai-workbench') { renderIterateCardList(); loadLiteratureOptions(); }
+  if (name === 'literature') { loadLiterature(); }
   if (name === 'review-queue') { switchReviewTab(currentReviewTab); }
   if (name === 'settings') { loadSettings(); }
 }
@@ -110,13 +121,6 @@ function refreshAll() {
   if (active && active.id === 'page-settings') loadSettings();
   showToast('数据已刷新', 'success');
 }
-function globalSearch() {
-  var kw = document.getElementById('globalSearch').value.trim();
-  if (!kw) return;
-  document.getElementById('filterKeyword').value = kw;
-  showPage('card-list');
-}
-
 /* ============ 卡片列表 ============ */
 function loadCards() {
   api('/cards').then(function (list) {
@@ -138,15 +142,14 @@ function filterCards() {
 }
 function renderCardList(data) {
   var tbody = document.getElementById('cardTableBody');
-  var statusCls = { published: 'tag-green', review1: 'tag-orange', review2: 'tag-orange', draft: 'tag-gray', deprecated: 'tag-red' };
+  var statusCls = { published: 'tag-green', review1: 'tag-orange', review2: 'tag-orange', draft: 'tag-gray' };
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">📭</div><div>未找到匹配的卡片</div><div class="tip">试试调整筛选条件，或点击右上角"手动创建卡片"</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">📭</div><div>未找到匹配的卡片</div><div class="tip">试试调整筛选条件，或点击右上角"手动创建卡片"</div></div></td></tr>';
   } else {
     tbody.innerHTML = data.map(function (c) {
       var aiTag = c.aiGenerated ? ' <span class="tag tag-purple" style="font-size:10px">AI</span>' : '';
       return '<tr onclick="openCardDetail(\'' + c.id + '\')">' +
         '<td><a onclick="event.stopPropagation();openCardDetail(\'' + c.id + '\')">' + esc(c.name) + '</a>' + aiTag + '</td>' +
-        '<td><span class="tag tag-purple">' + esc(c.questionName || '-') + '</span></td>' +
         '<td>' + esc(c.disease || '-') + '</td>' +
         '<td><span class="tag ' + (c.isCommon ? 'tag-blue' : 'tag-gray') + '">' + (c.isCommon ? '共性' : '专病') + '</span></td>' +
         '<td><code style="font-size:12px;color:var(--text2)">' + esc(c.version) + '</code></td>' +
@@ -160,7 +163,6 @@ function renderCardList(data) {
   document.getElementById('stat-published').textContent = CARDS.filter(function (c) { return c.status === 'published'; }).length;
   document.getElementById('stat-reviewing').textContent = CARDS.filter(function (c) { return c.status === 'review1' || c.status === 'review2'; }).length;
   document.getElementById('stat-draft').textContent = CARDS.filter(function (c) { return c.status === 'draft'; }).length;
-  document.getElementById('stat-deprecated').textContent = CARDS.filter(function (c) { return c.status === 'deprecated'; }).length;
   updateReviewBadge();
 }
 function updateReviewBadge() {
@@ -180,6 +182,7 @@ function openCardDetail(id) {
   if (c.status === 'draft') {
     footer.innerHTML += '<button class="btn btn-primary" onclick="editCardFromDetail()">编辑</button>';
     footer.innerHTML += '<button class="btn btn-warning" onclick="submitReviewFromDetail()">提交一审</button>';
+    footer.innerHTML += '<button class="btn btn-danger" onclick="deleteCardFromDetail()">删除</button>';
   } else if (c.status === 'review1' || c.status === 'review2') {
     footer.innerHTML += '<button class="btn btn-primary" onclick="goReviewFromDetail()">进入审核</button>';
   } else if (c.status === 'published') {
@@ -193,13 +196,13 @@ function closeCardDetail() {
 function renderCardDetail(c) {
   var html = '';
   html += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">' +
-    '<span class="tag tag-purple">' + esc(c.type) + '</span>' +
-    '<span class="tag ' + (c.status === 'published' ? 'tag-green' : (c.status === 'draft' ? 'tag-gray' : (c.status === 'deprecated' ? 'tag-red' : 'tag-orange'))) + '">' + (STATUS_MAP[c.status] || c.status) + '</span>' +
+    '<span class="tag ' + typeTagOf(c.type) + '">' + esc(c.type) + '</span>' +
+    '<span class="tag ' + (c.status === 'published' ? 'tag-green' : (c.status === 'draft' ? 'tag-gray' : 'tag-orange')) + '">' + (STATUS_MAP[c.status] || c.status) + '</span>' +
     (c.isCommon ? '<span class="tag tag-blue">共性</span>' : '<span class="tag tag-gray">专病</span>') +
     '<span style="font-size:12px;color:var(--text3)">' + esc(c.disease) + ' · ' + esc(c.scene || '') + '</span>' +
     (c.aiGenerated ? '<span class="tag tag-purple">🤖 AI 迭代</span>' : '') +
     '</div>';
-  html += renderReviewFields(c);
+  html += c.type === '护理问题卡' ? renderReviewFields(c) : renderGenericFields(c);
   if (c.aiSource) {
     html += '<div class="field-note" style="margin-top:10px">AI 来源：' + esc(c.aiSource) + '</div>';
   }
@@ -218,6 +221,29 @@ function renderCardDetail(c) {
       '</div>';
   }
   return html;
+}
+function renderGenericFields(c) {
+  var html = '';
+  html += '<div class="review-field">' +
+    '<div class="field-label">关联病种</div>' +
+    '<div class="field-final">' + esc(c.disease || '—') + '</div>' +
+    '</div>';
+  html += '<div class="review-field">' +
+    '<div class="field-label">共性/专病</div>' +
+    '<div class="field-final">' + (c.isCommon ? '共性（跨病种）' : '专病特有') + '</div>' +
+    '</div>';
+  return html;
+}
+function deleteCardFromDetail() {
+  var c = currentReviewCard;
+  if (!c) return;
+  if (!confirm('确定删除草稿卡片「' + c.name + '」？删除后不可恢复。')) return;
+  api('/cards/' + c.id, { method: 'DELETE' })
+    .then(function () {
+      closeCardDetail();
+      showToast('已删除草稿卡片', 'success');
+      loadCards();
+    }).catch(showErr);
 }
 function editCardFromDetail() {
   var c = currentReviewCard;
@@ -260,6 +286,8 @@ function openCreateCardModal() {
   editingCardId = null;
   document.getElementById('createCardModalTitle').textContent = '新建知识卡片';
   document.getElementById('saveCardBtn').textContent = '保存草稿';
+  document.getElementById('newCardType').value = '护理问题卡';
+  updateTypeFields();
   document.getElementById('newCardName').value = '';
   document.getElementById('newCardDisease').value = 'AMI';
   document.getElementById('newCardIsCommon').value = 'false';
@@ -274,6 +302,8 @@ function openEditCardModal(c) {
   editingCardId = c.id;
   document.getElementById('createCardModalTitle').textContent = '编辑知识卡片';
   document.getElementById('saveCardBtn').textContent = '保存修改';
+  document.getElementById('newCardType').value = c.type || '护理问题卡';
+  updateTypeFields();
   document.getElementById('newCardName').value = c.name || '';
   document.getElementById('newCardDisease').value = c.disease || '';
   document.getElementById('newCardIsCommon').value = String(c.isCommon);
@@ -286,6 +316,12 @@ function openEditCardModal(c) {
 }
 function closeCreateCardModal() {
   document.getElementById('createCardModal').classList.remove('show');
+}
+function updateTypeFields() {
+  var t = document.getElementById('newCardType').value;
+  var nursing = t === '护理问题卡';
+  document.getElementById('nursingFieldsWrap').style.display = nursing ? '' : 'none';
+  document.getElementById('nonNursingHint').style.display = nursing ? 'none' : '';
 }
 function resetMeasureEditor(measures) {
   var host = document.getElementById('measureEditor');
@@ -370,23 +406,25 @@ function collectRefs() {
 function saveNewCard() {
   var name = document.getElementById('newCardName').value.trim();
   if (!name) { showToast('请填写卡名称', 'error'); return; }
+  var type = document.getElementById('newCardType').value;
   var questionName = document.getElementById('nc_questionName').value.trim();
-  if (!questionName) { showToast('请填写护理问题名称', 'error'); return; }
+  if (type === '护理问题卡' && !questionName) { showToast('请填写护理问题名称', 'error'); return; }
   var payload = {
     name: name,
+    type: type,
     disease: document.getElementById('newCardDisease').value.trim(),
     isCommon: document.getElementById('newCardIsCommon').value === 'true',
     questionName: questionName,
     goal: document.getElementById('nc_goal').value.trim(),
     triggerCond: document.getElementById('nc_triggerCond').value.trim(),
-    measures: collectMeasures(),
+    measures: type === '护理问题卡' ? collectMeasures() : [],
     refs: collectRefs()
   };
   var req = editingCardId
     ? api('/cards/' + editingCardId, { method: 'PUT', body: payload })
     : api('/cards', { method: 'POST', body: payload });
   req.then(function () {
-    showToast(editingCardId ? '已保存修改：' + name : '已保存草稿：' + name, 'success');
+    showToast(editingCardId ? '已保存修改：' + name : '已保存草稿：' + name + (type !== '护理问题卡' ? '（' + type + '，表单待完善）' : ''), 'success');
     closeCreateCardModal();
     loadCards();
   }).catch(showErr);
@@ -412,7 +450,7 @@ function renderReviewList(list, title) {
     tbody.innerHTML = list.map(function (c) {
       return '<tr>' +
         '<td><a onclick="openReviewPanel(\'' + c.id + '\')">' + esc(c.name) + '</a></td>' +
-        '<td><span class="tag tag-purple">' + esc(c.type) + '</span></td>' +
+        '<td><span class="tag ' + typeTagOf(c.type) + '">' + esc(c.type) + '</span></td>' +
         '<td><code style="font-size:12px;color:var(--text2)">' + esc(c.version) + '</code></td>' +
         '<td>' + esc(c.creatorName || '') + '</td>' +
         '<td style="font-size:12px;color:var(--text2)">' + esc(c.updatedAt || '') + '</td>' +
@@ -529,49 +567,91 @@ function confirmReject() {
 function handleFileSelect(input) {
   var f = input.files && input.files[0];
   if (!f) return;
+  uploadToLibrary(f, function (r) {
+    loadLiteratureOptions(r.id);
+    input.value = '';
+  });
+}
+function uploadToLibrary(f, afterUpload) {
   var fd = new FormData();
   fd.append('file', f);
-  api('/files/upload', { method: 'POST', body: fd })
+  api('/literature', { method: 'POST', body: fd })
     .then(function (r) {
-      UPLOADS.push({ fileId: r.fileId, fileName: r.fileName, size: r.size });
-      if (!selectedFileId) selectedFileId = r.fileId;
-      renderUploadList();
-      input.value = '';
-      showToast('文件上传成功：' + r.fileName, 'success');
+      if (afterUpload) afterUpload(r);
+      showToast('上传成功：' + r.fileName, 'success');
     })
-    .catch(function (e) { showErr(e); input.value = ''; });
+    .catch(function (e) { showErr(e); });
 }
-function renderUploadList() {
-  var host = document.getElementById('uploadList');
-  if (!UPLOADS.length) {
-    host.innerHTML = '<div class="field-note" style="margin-top:8px">尚未上传文件</div>';
-    return;
-  }
-  host.innerHTML = UPLOADS.map(function (u) {
-    var size = u.size > 1024 * 1024 ? (u.size / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(u.size / 1024)) + ' KB';
-    return '<div class="upload-item ' + (u.fileId === selectedFileId ? 'selected' : '') + '" onclick="selectUpload(\'' + u.fileId + '\')">' +
-      '<span class="u-check">✓</span>' +
-      '<span class="u-name">' + esc(u.fileName) + '</span>' +
-      '<span class="u-size">' + size + '</span>' +
-      '<button class="u-del" onclick="event.stopPropagation();deleteUpload(\'' + u.fileId + '\')">✕</button>' +
-      '</div>';
-  }).join('');
+function selectLiterature() {
+  selectedFileId = document.getElementById('aiLitSelect').value;
 }
-function selectUpload(id) {
-  selectedFileId = id;
-  renderUploadList();
+function loadLiteratureOptions(selectId) {
+  api('/literature').then(function (list) {
+    var sel = document.getElementById('aiLitSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- 请选择文献库中的文献 --</option>' +
+      list.map(function (f) { return '<option value="' + f.id + '">' + esc(f.name) + '</option>'; }).join('');
+    if (selectId) { sel.value = selectId; selectedFileId = selectId; }
+  }).catch(showErr);
 }
-function deleteUpload(id) {
-  api('/files/' + id, { method: 'DELETE' })
+function handleLitFileSelect(input) {
+  var f = input.files && input.files[0];
+  if (!f) return;
+  uploadToLibrary(f, function () { loadLiterature(); input.value = ''; });
+}
+function loadLiterature() {
+  var kw = document.getElementById('litKeyword').value.trim();
+  api('/literature?keyword=' + encodeURIComponent(kw)).then(function (list) {
+    var tbody = document.getElementById('literatureTableBody');
+    document.getElementById('totalLiterature').textContent = list.length;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="icon">📚</div><div>暂无文献，点击右上角"上传文献"</div></div></td></tr>';
+    } else {
+      tbody.innerHTML = list.map(function (f) {
+        var size = f.size > 1024 * 1024 ? (f.size / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB';
+        return '<tr>' +
+          '<td>' + esc(f.name) + '</td>' +
+          '<td><span class="tag tag-gray">' + esc((f.ext || '').replace('.', '').toUpperCase()) + '</span></td>' +
+          '<td>' + size + '</td>' +
+          '<td>' + esc(f.creatorName || '') + '</td>' +
+          '<td style="font-size:12px;color:var(--text2)">' + esc(f.uploadedAt) + '</td>' +
+          '<td><a data-name="' + esc(f.name) + '" onclick="downloadLiterature(this,\'' + f.id + '\')">下载</a> | <a style="color:var(--danger)" onclick="deleteLiterature(\'' + f.id + '\')">删除</a></td>' +
+          '</tr>';
+      }).join('');
+    }
+  }).catch(showErr);
+}
+function downloadLiterature(el, id) {
+  fetch('/api/literature/' + id + '/download', { headers: { Authorization: 'Bearer ' + TOKEN } })
+    .then(function (r) {
+      if (!r.ok) throw new Error('下载失败');
+      return r.blob();
+    })
+    .then(function (blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (el && el.getAttribute('data-name')) || ('文献_' + id);
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    })
+    .catch(function () { showToast('下载失败', 'error'); });
+}
+function deleteLiterature(id) {
+  if (!confirm('确定删除该文献？删除后不可恢复（已生成草稿中的引用文字不受影响）。')) return;
+  api('/literature/' + id, { method: 'DELETE' })
     .then(function () {
-      UPLOADS = UPLOADS.filter(function (u) { return u.fileId !== id; });
-      if (selectedFileId === id) selectedFileId = UPLOADS.length ? UPLOADS[0].fileId : '';
-      renderUploadList();
-      showToast('已删除上传文件', 'info');
+      loadLiterature();
+      loadLiteratureOptions();
+      showToast('已删除文献', 'success');
     }).catch(showErr);
 }
 function renderIterateCardList() {
-  var list = CARDS.filter(function (c) { return c.status === 'draft' || c.status === 'published'; });
+  var kw = document.getElementById('iterateCardSearch') ? document.getElementById('iterateCardSearch').value.toLowerCase() : '';
+  var list = CARDS.filter(function (c) {
+    return (c.status === 'draft' || c.status === 'published') &&
+      (!kw || c.name.toLowerCase().includes(kw) || c.questionName.toLowerCase().includes(kw));
+  });
   var host = document.getElementById('iterateCardList');
   if (!host) return;
   if (!list.length) {
@@ -885,8 +965,9 @@ function showToast(msg, type) {
 
 /* ============ 初始化 ============ */
 document.addEventListener('DOMContentLoaded', function () {
-  var dz = document.getElementById('dropzone');
-  if (dz) {
+  function bindDropzone(dzId, afterUpload) {
+    var dz = document.getElementById(dzId);
+    if (!dz) return;
     ['dragover', 'dragenter'].forEach(function (ev) {
       dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('dragover'); });
     });
@@ -895,19 +976,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     dz.addEventListener('drop', function (e) {
       var f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) {
-        var fd = new FormData();
-        fd.append('file', f);
-        api('/files/upload', { method: 'POST', body: fd })
-          .then(function (r) {
-            UPLOADS.push({ fileId: r.fileId, fileName: r.fileName, size: r.size });
-            if (!selectedFileId) selectedFileId = r.fileId;
-            renderUploadList();
-            showToast('文件上传成功：' + r.fileName, 'success');
-          }).catch(showErr);
-      }
+      if (f) uploadToLibrary(f, afterUpload);
     });
   }
+  bindDropzone('dropzone', function (r) { loadLiteratureOptions(r.id); });
+  bindDropzone('litDropzone', function () { loadLiterature(); });
   document.getElementById('loginPass').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') doLogin();
   });

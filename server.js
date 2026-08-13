@@ -13,6 +13,11 @@ const { FIELD_LABEL_MAP, normalizeResult } = require("./normalize");
 const app = express();
 const PUBLIC_DIR = path.join(__dirname, "public");
 const UPLOAD_DIR = dbLib.UPLOAD_DIR;
+const LITERATURE_DIR = dbLib.LITERATURE_DIR;
+
+function findUploadFile(fileId) {
+  return db().literature.find(f => f.id === fileId) || db().uploadedFiles.find(f => f.id === fileId);
+}
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -108,14 +113,20 @@ app.get("/api/cards", auth, (req, res) => {
 });
 
 app.post("/api/cards", auth, requireRole("engineer", "admin"), (req, res) => {
-  const { name, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
-  if (!name || !questionName) return res.status(400).json({ error: "卡片名称和护理问题名称为必填" });
+  const { name, type, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
+  if (!name) return res.status(400).json({ error: "卡片名称为必填" });
+  if (type && !CARD_TYPES.includes(type)) return res.status(400).json({ error: "无效卡片类型" });
+  const cardType = type || "护理问题卡";
+  if (cardType === "护理问题卡" && !questionName) return res.status(400).json({ error: "护理问题名称为必填" });
+  const isNursing = cardType === "护理问题卡";
   const card = {
     id: dbLib.nextId("kc"),
-    name, type: "护理问题卡", disease: disease || "AMI", isCommon: !!isCommon,
+    name, type: cardType, disease: disease || "AMI", isCommon: !!isCommon,
     version: "v0.1", status: "draft", scene: "待编辑",
-    questionName, goal: goal || "", triggerCond: triggerCond || "",
-    measures: Array.isArray(measures) ? measures : [],
+    questionName: isNursing ? (questionName || "") : "",
+    goal: isNursing ? (goal || "") : "",
+    triggerCond: isNursing ? (triggerCond || "") : "",
+    measures: isNursing && Array.isArray(measures) ? measures : [],
     refs: Array.isArray(refs) ? normalizeRefs(refs) : [], aiGenerated: false, aiSource: "", iterateFrom: "",
     rejectReason: "", createdBy: req.user.id, updatedBy: req.user.id,
     createdAt: dbLib.now(), updatedAt: dbLib.now()
@@ -179,6 +190,15 @@ app.post("/api/cards/:id/submit-review", auth, requireRole("engineer", "admin"),
   c.updatedAt = dbLib.now();
   dbLib.saveDb();
   res.json({ status: "review1" });
+});
+
+app.delete("/api/cards/:id", auth, requireRole("engineer", "admin"), (req, res) => {
+  const idx = db().cards.findIndex(x => x.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "卡片不存在" });
+  if (db().cards[idx].status !== "draft") return res.status(400).json({ error: "仅草稿状态可删除" });
+  db().cards.splice(idx, 1);
+  dbLib.saveDb();
+  res.json({ success: true });
 });
 
 app.post("/api/cards/:id/review", auth, (req, res) => {
@@ -316,10 +336,82 @@ app.delete("/api/files/:id", auth, (req, res) => {
   res.json({ success: true });
 });
 
+/* ============ 文献管理 ============ */
+const literatureStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, LITERATURE_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, randomUUID() + ext);
+  }
+});
+const literatureUpload = multer({
+  storage: literatureStorage,
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!cfg().files.allowedExtensions.includes(ext)) {
+      return cb(new Error("不支持的文件类型：" + ext + "（允许 " + cfg().files.allowedExtensions.join(" / ") + "）"));
+    }
+    cb(null, true);
+  }
+});
+
+app.post("/api/literature", auth, requireRole("engineer", "admin"), (req, res) => {
+  literatureUpload.single("file")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || "文件上传失败" });
+    if (!req.file) return res.status(400).json({ error: "未收到文件" });
+    const name = decodeUploadName(req.file.originalname);
+    const maxBytes = cfg().files.maxSizeMb * 1024 * 1024;
+    if (req.file.size > maxBytes) {
+      try { require("fs").unlinkSync(req.file.path); } catch (e) { /* 忽略 */ }
+      return res.status(400).json({ error: "文件超过大小限制（" + cfg().files.maxSizeMb + "MB）" });
+    }
+    const lit = {
+      id: path.basename(req.file.filename, path.extname(req.file.filename)),
+      name,
+      ext: path.extname(name).toLowerCase(),
+      size: req.file.size,
+      path: req.file.path,
+      uploadedBy: req.user.id,
+      uploadedAt: dbLib.now()
+    };
+    db().literature.unshift(lit);
+    dbLib.saveDb();
+    res.json({ id: lit.id, fileName: lit.name, ext: lit.ext, size: lit.size });
+  });
+});
+
+app.get("/api/literature", auth, (req, res) => {
+  const kw = String(req.query.keyword || "").trim().toLowerCase();
+  let list = db().literature.slice().sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+  if (kw) list = list.filter(f => f.name.toLowerCase().includes(kw));
+  res.json(list.map(f => ({
+    id: f.id, name: f.name, ext: f.ext, size: f.size,
+    uploadedBy: f.uploadedBy, uploadedAt: f.uploadedAt,
+    creatorName: userName(f.uploadedBy)
+  })));
+});
+
+app.get("/api/literature/:id/download", auth, (req, res) => {
+  const f = db().literature.find(x => x.id === req.params.id);
+  if (!f || !require("fs").existsSync(f.path)) return res.status(404).json({ error: "文献不存在" });
+  res.download(f.path, f.name);
+});
+
+app.delete("/api/literature/:id", auth, requireRole("engineer", "admin"), (req, res) => {
+  const idx = db().literature.findIndex(f => f.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "文献不存在" });
+  const f = db().literature[idx];
+  db().literature.splice(idx, 1);
+  dbLib.saveDb();
+  try { require("fs").unlinkSync(f.path); } catch (e) { /* 忽略 */ }
+  res.json({ success: true });
+});
+
 /* ============ AI 抽取 ============ */
 const DEFAULT_PROMPT = "请基于当前文献优化现有护理问题卡内容。";
 
-const CARD_STATUS_LABEL = { draft: "草稿", review1: "一级审核中", review2: "二级审核中", published: "已定稿", deprecated: "已废弃" };
+const CARD_STATUS_LABEL = { draft: "草稿", review1: "一级审核中", review2: "二级审核中", published: "已定稿" };
+const CARD_TYPES = ["护理问题卡", "评估卡", "风险预警卡", "宣教卡", "应急预案卡", "交接班卡", "随访卡"];
 
 function cardToDify(c) {
   return {
@@ -350,7 +442,7 @@ async function runExtractTask(taskId) {
     if (!c.dify.baseUrl || !c.dify.apiKey || !c.dify.workflowId) {
       throw new Error("请先在系统设置中配置 Dify 工作流（Base URL / API Key / Workflow ID）");
     }
-    const file = db().uploadedFiles.find(f => f.id === task.fileId);
+    const file = findUploadFile(task.fileId);
     if (!file || !require("fs").existsSync(file.path)) throw new Error("上传文件已失效，请重新上传");
     const card = db().cards.find(x => x.id === task.cardId);
     if (!card) throw new Error("目标卡片不存在");
@@ -380,7 +472,7 @@ app.post("/api/extract", auth, requireRole("engineer", "admin"), (req, res) => {
   const { fileId, cardId, prompt } = req.body || {};
   if (!fileId) return res.status(400).json({ error: "请先上传文献文件" });
   if (!cardId) return res.status(400).json({ error: "请选择要迭代的目标卡片" });
-  const file = db().uploadedFiles.find(f => f.id === fileId);
+  const file = findUploadFile(fileId);
   if (!file) return res.status(400).json({ error: "上传文件不存在或已失效" });
   const card = db().cards.find(x => x.id === cardId);
   if (!card) return res.status(400).json({ error: "目标卡片不存在" });
@@ -578,6 +670,11 @@ app.post("/api/settings/test-dify", auth, requireRole("admin"), async (req, res)
   }
 });
 
+app.post("/api/settings/cleanup", auth, requireRole("admin"), (req, res) => {
+  const r = cleanupOldFiles();
+  res.json({ success: true, cleanedFiles: r.cleanedFiles, cleanedRegs: r.cleanedRegs });
+});
+
 /* ============ 静态资源与启动 ============ */
 app.use(express.static(PUBLIC_DIR));
 app.get("*", (req, res) => {
@@ -595,16 +692,27 @@ function cleanupOldFiles() {
   const ttlMs = c.files.ttlHours * 3600 * 1000;
   const cutoff = Date.now() - ttlMs;
   const fs = require("fs");
+  let cleanedFiles = 0;
+  // 1) 扫描临时目录，按文件修改时间删除超期物理文件（兜底清理，不依赖登记表）
+  if (fs.existsSync(UPLOAD_DIR)) {
+    fs.readdirSync(UPLOAD_DIR).forEach(fn => {
+      const fp = path.join(UPLOAD_DIR, fn);
+      try {
+        const st = fs.statSync(fp);
+        if (st.isFile() && st.mtimeMs < cutoff) { fs.unlinkSync(fp); cleanedFiles++; }
+      } catch (e) { /* 忽略 */ }
+    });
+  }
+  // 2) 清理登记表中物理文件已不存在或已超期的记录
   const before = db().uploadedFiles.length;
   db().uploadedFiles = db().uploadedFiles.filter(f => {
+    if (!f.path || !fs.existsSync(f.path)) return false;
     const t = new Date(String(f.uploadedAt).replace(" ", "T")).getTime();
-    if (!t || t < cutoff) {
-      try { fs.unlinkSync(f.path); } catch (e) { /* 忽略 */ }
-      return false;
-    }
-    return true;
+    return !!t && t >= cutoff;
   });
-  if (db().uploadedFiles.length !== before) dbLib.saveDb();
+  const cleanedRegs = before - db().uploadedFiles.length;
+  if (cleanedRegs > 0) dbLib.saveDb();
+  return { cleanedFiles, cleanedRegs };
 }
 
 function decodeUploadName(name) {

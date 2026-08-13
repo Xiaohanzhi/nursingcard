@@ -82,6 +82,21 @@ async function main() {
   r = await req("GET", "/api/cards/" + newId, null, admin);
   check("引用可清空", r.json.refs.length === 0);
 
+  // 卡片类型与删除规则
+  r = await req("POST", "/api/cards", { name: "评估卡测试", type: "评估卡", disease: "AMI", isCommon: false }, admin);
+  check("创建评估卡（无需护理问题）", r.status === 200 && r.json.id, "id=" + r.json.id);
+  const evalId = r.json.id;
+  r = await req("GET", "/api/cards/" + evalId, null, admin);
+  check("评估卡类型已保存", r.json.type === "评估卡" && r.json.questionName === "" && r.json.measures.length === 0);
+  r = await req("POST", "/api/cards", { name: "非法类型", type: "未知类型", questionName: "x" }, admin);
+  check("非法类型被拒绝", r.status === 400);
+  r = await req("DELETE", "/api/cards/" + evalId, null, admin);
+  check("草稿可删除", r.status === 200 && r.json.success);
+  r = await req("GET", "/api/cards/" + evalId, null, admin);
+  check("删除后卡片不存在", r.status === 404);
+  r = await req("DELETE", "/api/cards/card1", null, admin);
+  check("已定稿不可删除", r.status === 400);
+
   // 提交一审
   r = await req("POST", "/api/cards/" + newId + "/submit-review", {}, admin);
   check("提交一审", r.status === 200 && r.json.status === "review1");
@@ -124,24 +139,64 @@ async function main() {
   r = await req("POST", "/api/settings/test-dify", {}, admin);
   check("Dify 测试连接", r.status === 200 && r.json.success, JSON.stringify(r.json));
 
-  // 上传文件
+  // 上传文献（永久文献库）
   const txt = path.join(os.tmpdir(), "kc_api_sample_" + Date.now() + ".txt");
   fs.writeFileSync(txt, "2025 ACC/AHA ACS 指南：疼痛管理章节摘要……", "utf8");
   const buf = fs.readFileSync(txt);
   const fd = new FormData();
   fd.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
-  r = await req("POST", "/api/files/upload", fd, admin, true);
-  check("上传临时文件", r.status === 200 && r.json.fileId, "id=" + r.json.fileId);
-  const fileId = r.json.fileId;
+  r = await req("POST", "/api/literature", fd, admin, true);
+  check("上传文献入库", r.status === 200 && r.json.id, "id=" + r.json.id);
+  const fileId = r.json.id;
 
   // 非法扩展名
   const bad = new FormData();
   bad.append("file", new Blob([buf], { type: "application/octet-stream" }), "evil.exe");
-  r = await req("POST", "/api/files/upload", bad, admin, true);
+  r = await req("POST", "/api/literature", bad, admin, true);
   check("非法扩展名被拒绝", r.status === 400);
 
+  // 文献列表 / 搜索 / 下载 / 同名 / 删除
+  r = await req("GET", "/api/literature", null, admin);
+  check("文献列表 1 条", r.status === 200 && r.json.length === 1 && r.json[0].name === "sample.txt");
+  r = await req("GET", "/api/literature?keyword=sample", null, admin);
+  check("文献关键词搜索", r.status === 200 && r.json.length === 1);
+  r = await req("GET", "/api/literature?keyword=不存在", null, admin);
+  check("文献搜索无结果", r.status === 200 && r.json.length === 0);
+  const dl = await fetch(BASE + "/api/literature/" + fileId + "/download", { headers: { Authorization: "Bearer " + admin } });
+  check("文献下载内容一致", dl.status === 200 && (await dl.text()).includes("疼痛管理章节摘要"));
+  const fd2 = new FormData();
+  fd2.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
+  r = await req("POST", "/api/literature", fd2, admin, true);
+  check("同名文献不冲突", r.status === 200 && r.json.id !== fileId);
+  r = await req("GET", "/api/literature", null, admin);
+  check("文献列表 2 条", r.status === 200 && r.json.length === 2);
+  r = await req("DELETE", "/api/literature/" + fileId, null, admin);
+  check("文献可删除", r.status === 200 && r.json.success);
+  const dl2 = await fetch(BASE + "/api/literature/" + fileId + "/download", { headers: { Authorization: "Bearer " + admin } });
+  check("删除后下载 404", dl2.status === 404);
+
+  // 清理逻辑：超期临时文件被扫描删除、文献库不受影响
+  const tmpFd = new FormData();
+  tmpFd.append("file", new Blob([buf], { type: "text/plain" }), "tmp_probe.txt");
+  r = await req("POST", "/api/files/upload", tmpFd, admin, true);
+  check("临时文件上传（兼容接口）", r.status === 200 && r.json.fileId);
+  const tmpId = r.json.fileId;
+  const srvTmpFile = path.join(__dirname, "..", "uploads", "tmp", tmpId + ".txt");
+  const past = new Date(Date.now() - 48 * 3600 * 1000);
+  fs.utimesSync(srvTmpFile, past, past);
+  r = await req("POST", "/api/settings/cleanup", {}, admin);
+  check("超期临时文件被清理", r.status === 200 && r.json.success && r.json.cleanedFiles >= 1 && !fs.existsSync(srvTmpFile));
+  r = await req("GET", "/api/literature", null, admin);
+  check("清理不影响文献库", r.status === 200 && r.json.length === 1);
+
+  // 为 AI 优化准备一份文献
+  const fd3 = new FormData();
+  fd3.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
+  r = await req("POST", "/api/literature", fd3, admin, true);
+  const extractFileId = r.json.id;
+
   // 发起抽取（目标：card7 已定稿）
-  r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "请基于文献优化疼痛相关卡片" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card7", prompt: "请基于文献优化疼痛相关卡片" }, admin);
   check("发起 AI 抽取任务", r.status === 200 && r.json.id, "id=" + r.json.id);
   const extId = r.json.id;
 
@@ -173,7 +228,7 @@ async function main() {
   check("AI 草稿合并 AI 输出引用", refTitles.includes("急性ST段抬高型心肌梗死溶栓治疗专家共识"));
 
   // 英文键直传确认（不经过前端中文标签）
-  r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "英文键测试" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card7", prompt: "英文键测试" }, admin);
   const extId2 = r.json.id;
   let task2 = null;
   for (let i = 0; i < 30; i++) {
@@ -194,7 +249,7 @@ async function main() {
   check("英文键字段已应用", r.json.goal === "英文键目标已更新" && r.json.measures[0].measure_name === "英文键措施");
 
   // 旧契约回归（mock 按 prompt 含 OLD_FORMAT 返回旧格式）
-  r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "OLD_FORMAT 回归测试" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card7", prompt: "OLD_FORMAT 回归测试" }, admin);
   const extId3 = r.json.id;
   let task3 = null;
   for (let i = 0; i < 30; i++) {
@@ -213,7 +268,7 @@ async function main() {
   check("旧格式字段已应用", r.json.goal.includes("无伴随症状加重"));
 
   // 形态A 回归（result.optimization / original / optimized / rationale）
-  r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "OPT_FORMAT 测试" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card7", prompt: "OPT_FORMAT 测试" }, admin);
   const extId4 = r.json.id;
   let task4 = null;
   for (let i = 0; i < 30; i++) {
@@ -232,7 +287,7 @@ async function main() {
   check("形态A 字段已应用", r.json.goal.includes("ST段回落≥50%") && Array.isArray(r.json.measures) && r.json.measures[0].measure_name === "再灌注监护与体位管理");
 
   // 回显形态（工作流未执行优化，返回输入卡片）：应标记为诊断提示
-  r = await req("POST", "/api/extract", { fileId, cardId: "card7", prompt: "ECHO 测试" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card7", prompt: "ECHO 测试" }, admin);
   const extId5 = r.json.id;
   let task5 = null;
   for (let i = 0; i < 30; i++) {
@@ -250,7 +305,7 @@ async function main() {
   check("非结构化草稿也关联上传文献", (r.json.refs || []).length >= 1 && r.json.refs[0].title === "sample.txt" && r.json.refs[0].section === "上传文献");
 
   // 形态D（字段键值映射，当前真实工作流返回）
-  r = await req("POST", "/api/extract", { fileId, cardId: "card2", prompt: "KEYMAP 测试" }, admin);
+  r = await req("POST", "/api/extract", { fileId: extractFileId, cardId: "card2", prompt: "KEYMAP 测试" }, admin);
   const extId6 = r.json.id;
   let task6 = null;
   for (let i = 0; i < 30; i++) {

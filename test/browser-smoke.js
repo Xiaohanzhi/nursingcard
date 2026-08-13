@@ -50,6 +50,7 @@ async function main() {
         errors.push("EXCEPTION: " + (msg.params.exceptionDetails.exception ? msg.params.exceptionDetails.exception.description : msg.params.exceptionDetails.text));
       }
       if (msg.method === "Log.entryAdded" && msg.params.entry.level === "error") errors.push("LOG: " + msg.params.entry.text);
+      if (msg.method === "Page.javascriptDialogOpening") dialogOpen = true;
       if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") {
         errors.push("CONSOLE: " + (msg.params.args || []).map(a => a.value || a.description).join(" "));
       }
@@ -72,6 +73,7 @@ async function main() {
     await new Promise(r => setTimeout(r, 1500));
 
     const results = [];
+    let dialogOpen = false;
     const check = (name, ok, detail = "") => { results.push({ name, ok }); console.log((ok ? "PASS" : "FAIL") + " | " + name + (detail ? " | " + detail : "")); };
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -80,6 +82,9 @@ async function main() {
     await sleep(1200);
     check("登录后卡片列表 7 行", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 7);
     check("侧边栏用户显示", await evalJs("document.getElementById('userName').textContent") === "平台管理员");
+    check("列表无护理问题列", await evalJs("Array.from(document.querySelectorAll('#page-card-list thead th')).map(t=>t.textContent).join(',')") === "卡片名称,病种,共性,版本,状态,最后修改,操作");
+    check("列表无 AI 徽标（种子为手工卡）", await evalJs("document.querySelectorAll('#cardTableBody .tag-purple').length") === 0);
+    check("卡片列表统计卡 3 项", await evalJs("document.querySelectorAll('#page-card-list .stat-card').length") === 3);
 
     await evalJs("showPage('ai-workbench')");
     check("上传区存在", await evalJs("!!document.getElementById('dropzone')"));
@@ -89,8 +94,8 @@ async function main() {
     const q = await send("DOM.querySelector", { nodeId: doc.result.root.nodeId, selector: "#fileInput" });
     await send("DOM.setFileInputFiles", { nodeId: q.result.nodeId, files: [SAMPLE] });
     await sleep(800);
-    check("上传后文件列表 1 项", await evalJs("document.querySelectorAll('#uploadList .upload-item').length") === 1);
-    check("文件被选中", await evalJs("selectedFileId !== ''"));
+    check("上传后文献被选中", await evalJs("document.getElementById('aiLitSelect').value !== ''"));
+    check("文献已选中（selectedFileId）", await evalJs("selectedFileId !== ''"));
 
     await evalJs("selectIterateCard(document.querySelector('#iterateCardList .card-select-item'))");
     check("已选择目标卡片", await evalJs("selectedCardId !== ''"));
@@ -98,7 +103,7 @@ async function main() {
     check("进入步骤2", await evalJs("!document.getElementById('ai-step2-content').classList.contains('collapsed')"));
     await evalJs("aiStartExtract()");
     await sleep(4500);
-    check("抽取完成状态", await evalJs("document.getElementById('aiExtractStatus').textContent") === "抽取完成");
+    check("优化完成状态", await evalJs("document.getElementById('aiExtractStatus').textContent") === "优化完成");
     check("迭代对比面板出现", await evalJs("document.getElementById('aiExtractResult').innerHTML.includes('iterate-compare')"));
     check("建议行 = 3", await evalJs("document.querySelectorAll('.iterate-diff-row').length") === 3);
     check("措施卡片化呈现", await evalJs("document.querySelectorAll('.idr-m-card').length") >= 2);
@@ -116,6 +121,11 @@ async function main() {
 
     await evalJs("openCreateCardModal()");
     check("创建模态框标题", await evalJs("document.getElementById('createCardModalTitle').textContent") === "新建知识卡片");
+    check("新建类型默认护理问题卡", await evalJs("document.getElementById('newCardType').value") === "护理问题卡");
+    await evalJs("document.getElementById('newCardType').value='评估卡'; updateTypeFields()");
+    check("切换评估卡隐藏护理字段区并提示", await evalJs("document.getElementById('nursingFieldsWrap').style.display === 'none' && document.getElementById('nonNursingHint').style.display !== 'none'"));
+    await evalJs("document.getElementById('newCardType').value='护理问题卡'; updateTypeFields()");
+    check("切回护理问题卡恢复字段区", await evalJs("document.getElementById('nursingFieldsWrap').style.display !== 'none'"));
     await evalJs("document.getElementById('newCardName').value='冒烟测试卡'; document.getElementById('nc_questionName').value='冒烟问题'; addRefRow(); document.querySelector('#refEditor .rf-title').value='冒烟文献'; document.querySelector('#refEditor .rf-section').value='§1'; saveNewCard()");
     await sleep(800);
     check("创建后列表 9 张", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 9);
@@ -134,6 +144,25 @@ async function main() {
     await evalJs("testDify()");
     await sleep(1500);
     check("测试连接成功", await evalJs("document.getElementById('setDifyTestResult').textContent.includes('连接成功')"));
+
+    await evalJs("var c=CARDS.find(function(x){return x.name==='冒烟测试卡';}); if(c) openCardDetail(c.id)");
+    check("草稿详情有删除按钮", await evalJs("!!document.querySelector('#cardDetailFooter .btn-danger')"));
+    dialogOpen = false;
+    await evalJs("setTimeout(function(){ document.querySelector('#cardDetailFooter .btn-danger').click(); }, 0)");
+    for (let i = 0; i < 30 && !dialogOpen; i++) await sleep(100);
+    await send("Page.handleJavaScriptDialog", { accept: true });
+    await sleep(800);
+    check("删除后列表回到 8 张", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 8);
+
+    await evalJs("showPage('literature')");
+    await sleep(600);
+    check("文献页显示已上传文献", await evalJs("document.querySelectorAll('#literatureTableBody tr').length") === 1 && await evalJs("document.getElementById('literatureTableBody').textContent.includes('sample.txt')"));
+    dialogOpen = false;
+    await evalJs("setTimeout(function(){ var a=document.querySelector('#literatureTableBody a[style*=\"danger\"]'); if(a) a.click(); }, 0)");
+    for (let i = 0; i < 30 && !dialogOpen; i++) await sleep(100);
+    await send("Page.handleJavaScriptDialog", { accept: true });
+    await sleep(800);
+    check("删除文献后列表为空态", await evalJs("document.querySelectorAll('#literatureTableBody tr').length") === 1 && await evalJs("document.getElementById('literatureTableBody').textContent.includes('暂无文献')"));
 
     console.log("---");
     check("无 JS/console 错误", errors.length === 0, errors.join(";"));
