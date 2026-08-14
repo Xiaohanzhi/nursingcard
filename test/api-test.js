@@ -126,6 +126,26 @@ async function main() {
   check("已定稿新建版本 → 草稿 v1.1", r.status === 200 && r.json.status === "draft" && r.json.version === "v1.1", "version=" + r.json.version);
   const verId = r.json.id;
 
+  // 版本链：新版本二审通过后旧版停用
+  r = await req("POST", "/api/cards/" + verId + "/submit-review", {}, admin);
+  await req("POST", "/api/cards/" + verId + "/review", { level: 1, action: "approve" }, reviewer1);
+  r = await req("POST", "/api/cards/" + verId + "/review", { level: 2, action: "approve" }, reviewer2);
+  check("新版本定稿为 v1.1", r.status === 200 && r.json.status === "published" && r.json.version === "v1.1");
+  r = await req("GET", "/api/cards/" + newId, null, admin);
+  check("旧版自动停用", r.json.status === "superseded");
+  r = await req("GET", "/api/cards", null, admin);
+  check("列表默认不含停用版", r.status === 200 && !r.json.some(c => c.status === "superseded") && r.json.some(c => c.id === verId));
+  r = await req("GET", "/api/cards?includeHistory=1", null, admin);
+  check("含历史时包含停用版", r.status === 200 && r.json.some(c => c.id === newId && c.status === "superseded"));
+  const lineId = r.json.find(x => x.id === verId).lineId;
+  check("同链仅一个生效已定稿", r.json.filter(c => c.lineId === lineId && c.status === "published").length === 1);
+  r = await req("POST", "/api/cards/" + newId + "/new-version", {}, admin);
+  check("停用版不可再新建版本", r.status === 400);
+  r = await req("GET", "/api/cards/" + verId + "/versions", null, admin);
+  check("版本历史含新旧两版", r.status === 200 && r.json.length === 2 && r.json.some(v => v.status === "superseded") && r.json.some(v => v.status === "published"));
+  r = await req("GET", "/api/linkage/content", null, admin);
+  check("聚合仅含生效版", r.status === 200 && !r.json.cardIds.includes(newId));
+
   // 设置 Dify 指向 mock
   r = await req("PUT", "/api/settings", {
     dify: { baseUrl: "http://127.0.0.1:3788", apiKey: "mock-key", workflowId: "mock-wf", timeoutMs: 30000, outputVar: "output", inputNames: { file: "file", card: "card", prompt: "prompt" } },
@@ -222,6 +242,7 @@ async function main() {
   r = await req("GET", "/api/cards/" + draftId, null, admin);
   check("AI 草稿字段已应用", r.json.goal.includes("再灌注治疗后24小时") && r.json.aiGenerated === true);
   check("AI 草稿记录来源卡片", r.json.iterateFrom === "card7");
+  check("AI 草稿继承版本链", r.json.lineId === "card7");
   check("纯文本措施已拆分为结构化数组", Array.isArray(r.json.measures) && r.json.measures.length === 1 && r.json.measures[0].measure_name === "AI 优化措施" && r.json.measures[0].activities.length === 3);
   const refTitles = (r.json.refs || []).map(x => x.title);
   check("AI 草稿自动关联上传文献", refTitles.includes("sample.txt"));

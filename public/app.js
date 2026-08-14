@@ -12,7 +12,7 @@ var currentTask = null;
 var editingCardId = null;
 var pollTimer = null;
 
-var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿' };
+var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿', superseded: '已停用' };
 var ROLE_MAP = { admin: '管理员', engineer: '知识工程师', reviewer1: '一审审核员', reviewer2: '二审审核员', viewer: '查看者' };
 var TYPE_CLASS = {
   '护理问题卡': 'tag-purple',
@@ -174,9 +174,16 @@ function updateReviewBadge() {
 function openCardDetail(id) {
   var c = CARDS.find(function (x) { return x.id === id; });
   if (!c) return;
+  openCardDetailObj(c);
+}
+function openCardDetailObj(c) {
   currentReviewCard = c;
   document.getElementById('cardDetailTitle').textContent = c.name + '  —  ' + c.version;
   document.getElementById('cardDetailBody').innerHTML = renderCardDetail(c);
+  renderDetailFooter(c);
+  document.getElementById('cardDetailModal').classList.add('show');
+}
+function renderDetailFooter(c) {
   var footer = document.getElementById('cardDetailFooter');
   footer.innerHTML = '';
   if (c.status === 'draft') {
@@ -188,7 +195,7 @@ function openCardDetail(id) {
   } else if (c.status === 'published') {
     footer.innerHTML += '<button class="btn btn-primary" onclick="newVersionFromDetail()">新建版本</button>';
   }
-  document.getElementById('cardDetailModal').classList.add('show');
+  footer.innerHTML += '<button class="btn btn-default" onclick="showVersions(\'' + c.id + '\')">版本历史</button>';
 }
 function closeCardDetail() {
   document.getElementById('cardDetailModal').classList.remove('show');
@@ -197,11 +204,15 @@ function renderCardDetail(c) {
   var html = '';
   html += '<div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">' +
     '<span class="tag ' + typeTagOf(c.type) + '">' + esc(c.type) + '</span>' +
-    '<span class="tag ' + (c.status === 'published' ? 'tag-green' : (c.status === 'draft' ? 'tag-gray' : 'tag-orange')) + '">' + (STATUS_MAP[c.status] || c.status) + '</span>' +
+    '<span class="tag ' + (c.status === 'published' ? 'tag-green' : (c.status === 'superseded' ? 'tag-red' : (c.status === 'draft' ? 'tag-gray' : 'tag-orange'))) + '">' + (STATUS_MAP[c.status] || c.status) + '</span>' +
     (c.isCommon ? '<span class="tag tag-blue">共性</span>' : '<span class="tag tag-gray">专病</span>') +
     (c.aiGenerated ? '<span class="tag tag-purple">🤖 AI 迭代</span>' : '') +
     '</div>';
   html += c.type === '护理问题卡' ? renderReviewFields(c) : renderGenericFields(c);
+  if (c.status === 'superseded') {
+    var eff = CARDS.find(function (x) { return (x.lineId || x.id) === (c.lineId || c.id) && x.status === 'published'; });
+    html += '<div class="field-note" style="color:var(--warning-text);margin-top:10px">已停用：本版本已被 ' + (eff ? esc(eff.version) : '新版本') + ' 替代，不再生效（仅可查看）。</div>';
+  }
   if (c.aiSource) {
     html += '<div class="field-note" style="margin-top:10px">AI 来源：' + esc(c.aiSource) + '</div>';
   }
@@ -278,6 +289,36 @@ function goReviewFromDetail() {
     switchReviewTab(level);
     setTimeout(function () { openReviewPanel(c.id); }, 100);
   }
+}
+function showVersions(cardId) {
+  api('/cards/' + cardId + '/versions').then(function (list) {
+    var body = document.getElementById('versionsModalBody');
+    if (!list.length) {
+      body.innerHTML = '<div class="empty-state"><div>暂无版本记录</div></div>';
+    } else {
+      body.innerHTML = '<table><thead><tr><th>版本</th><th>状态</th><th>更新人</th><th>更新时间</th><th>操作</th></tr></thead><tbody>' +
+        list.map(function (v) {
+          var stCls = v.status === 'published' ? 'tag-green' : (v.status === 'superseded' ? 'tag-red' : (v.status === 'draft' ? 'tag-gray' : 'tag-orange'));
+          return '<tr>' +
+            '<td><code style="font-size:12px;color:var(--text2)">' + esc(v.version) + '</code></td>' +
+            '<td><span class="tag ' + stCls + '">' + (STATUS_MAP[v.status] || v.status) + '</span></td>' +
+            '<td>' + esc(v.updaterName || '') + '</td>' +
+            '<td style="font-size:12px;color:var(--text2)">' + esc(v.updatedAt || '') + '</td>' +
+            '<td><a onclick="openCardVersion(\'' + v.id + '\')">查看</a></td>' +
+            '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+    document.getElementById('versionsModal').classList.add('show');
+  }).catch(showErr);
+}
+function closeVersionsModal() {
+  document.getElementById('versionsModal').classList.remove('show');
+}
+function openCardVersion(id) {
+  api('/cards/' + id).then(function (c) {
+    closeVersionsModal();
+    openCardDetailObj(c);
+  }).catch(showErr);
 }
 
 /* ============ 创建 / 编辑卡片 ============ */
@@ -614,7 +655,7 @@ function loadLiterature() {
           '<td>' + size + '</td>' +
           '<td>' + esc(f.creatorName || '') + '</td>' +
           '<td style="font-size:12px;color:var(--text2)">' + esc(f.uploadedAt) + '</td>' +
-          '<td><a data-name="' + esc(f.name) + '" onclick="downloadLiterature(this,\'' + f.id + '\')">下载</a> | <a style="color:var(--danger)" onclick="deleteLiterature(\'' + f.id + '\')">删除</a></td>' +
+          '<td><a onclick="renameLiterature(\'' + f.id + '\')">重命名</a> | <a data-name="' + esc(f.name) + '" onclick="downloadLiterature(this,\'' + f.id + '\')">下载</a> | <a style="color:var(--danger)" onclick="deleteLiterature(\'' + f.id + '\')">删除</a></td>' +
           '</tr>';
       }).join('');
     }
@@ -643,6 +684,16 @@ function deleteLiterature(id) {
       loadLiterature();
       loadLiteratureOptions();
       showToast('已删除文献', 'success');
+    }).catch(showErr);
+}
+function renameLiterature(id) {
+  var name = prompt('请输入新的文献名称（含扩展名，如：2025 ACC指南.pdf）：');
+  if (!name || !name.trim()) return;
+  api('/literature/' + id, { method: 'PUT', body: { name: name.trim() } })
+    .then(function () {
+      loadLiterature();
+      loadLiteratureOptions();
+      showToast('文献已重命名', 'success');
     }).catch(showErr);
 }
 function renderIterateCardList() {
@@ -847,6 +898,8 @@ function acceptIterateSuggestion(uid) {
   if (!row) return;
   row.classList.remove('rejected');
   row.classList.add('accepted');
+  var input = document.getElementById(uid + '_input');
+  if (input) input.disabled = false;
   showToast('已采纳建议', 'success');
 }
 function rejectIterateSuggestion(uid) {
@@ -854,6 +907,8 @@ function rejectIterateSuggestion(uid) {
   if (!row) return;
   row.classList.remove('accepted');
   row.classList.add('rejected');
+  var input = document.getElementById(uid + '_input');
+  if (input) input.disabled = true;
   showToast('已拒绝此建议', 'warn');
 }
 function resetIterateInput(uid) {
@@ -861,6 +916,7 @@ function resetIterateInput(uid) {
   var input = document.getElementById(uid + '_input');
   if (!row || !input) return;
   row.classList.remove('accepted', 'rejected');
+  input.disabled = false;
   showToast('已重置', 'info');
 }
 function aiConfirmDraft() {

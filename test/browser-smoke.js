@@ -85,6 +85,12 @@ async function main() {
     check("列表无护理问题列", await evalJs("Array.from(document.querySelectorAll('#page-card-list thead th')).map(t=>t.textContent).join(',')") === "卡片名称,病种,共性,版本,状态,最后修改,操作");
     check("列表无 AI 徽标（种子为手工卡）", await evalJs("document.querySelectorAll('#cardTableBody .tag-purple').length") === 0);
     check("卡片列表统计卡 3 项", await evalJs("document.querySelectorAll('#page-card-list .stat-card').length") === 3);
+    await evalJs("openCardDetail('card1')");
+    check("生效卡有版本历史按钮", await evalJs("document.getElementById('cardDetailFooter').textContent.includes('版本历史')"));
+    await evalJs("showVersions('card1')");
+    await sleep(400);
+    check("版本历史弹层显示 v1.0", await evalJs("document.getElementById('versionsModal').classList.contains('show') && document.getElementById('versionsModalBody').textContent.includes('v1.0')"));
+    await evalJs("closeVersionsModal(); closeCardDetail()");
 
     await evalJs("showPage('ai-workbench')");
     check("上传区存在", await evalJs("!!document.getElementById('dropzone')"));

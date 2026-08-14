@@ -299,27 +299,30 @@ table a:hover{text-decoration:underline}
 .ic-card-name{color:var(--primary)}
 .ic-body{padding:12px 16px}
 .iterate-diff-row{
-  display:flex;align-items:flex-start;margin-bottom:8px;
+  display:grid;align-items:start;margin-bottom:8px;
+  grid-template-columns:140px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);
   border:1px solid var(--border);border-radius:var(--radius-sm);
   overflow:hidden;font-size:12px;background:var(--surface);
+  transition:border-color var(--transition), background var(--transition), opacity var(--transition);
 }
 .idr-field{
-  width:140px;flex-shrink:0;padding:10px 12px;
+  padding:10px 12px;min-width:0;
   background:#FAFAF8;border-right:1px solid var(--border);
   font-weight:600;color:var(--text2);
 }
 .idr-original{
-  width:180px;flex-shrink:0;padding:10px 12px;
+  padding:10px 12px;min-width:0;
   background:var(--danger-bg);border-right:1px solid var(--border);
   word-break:break-all;
 }
 .idr-suggest{
-  width:180px;flex-shrink:0;padding:10px 12px;
+  padding:10px 12px;min-width:0;
   background:var(--success-bg);border-right:1px solid var(--border);
   word-break:break-all;
 }
 .idr-reason{
-  flex:1;padding:10px 12px;background:var(--warning-bg);
+  padding:10px 12px;min-width:0;background:var(--warning-bg);
+  border-right:1px solid var(--border);
   word-break:break-all;
 }
 .idr-label{
@@ -328,7 +331,7 @@ table a:hover{text-decoration:underline}
 }
 .idr-text{color:var(--text3)}
 .idr-edit{
-  flex:1;min-width:200px;padding:8px 10px;
+  padding:8px 10px;min-width:0;
   display:flex;flex-direction:column;gap:6px;background:var(--surface);
 }
 .idr-edit input{
@@ -344,8 +347,6 @@ table a:hover{text-decoration:underline}
 }
 .idr-edit textarea:focus{border-color:var(--primary)}
 .idr-json{font-family:Consolas,"Courier New",monospace;font-size:11px !important}
-.iterate-diff-row.idr-measures .idr-original,
-.iterate-diff-row.idr-measures .idr-suggest{width:290px}
 .idr-m-card{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--radius-xs);padding:8px 10px;margin-bottom:8px;
@@ -369,6 +370,44 @@ table a:hover{text-decoration:underline}
 .idr-actions button.accept{background:var(--success-bg);border-color:var(--success);color:var(--success)}
 .idr-actions button.reject{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
 .idr-actions button:hover{filter:brightness(.96)}
+
+/* ===== 采纳/拒绝 可视化状态 ===== */
+.iterate-diff-row.accepted{
+  border-color:var(--success);
+  background:linear-gradient(90deg, rgba(45,140,74,.04), rgba(45,140,74,.09));
+}
+.iterate-diff-row.accepted .idr-original{opacity:.45}
+.iterate-diff-row.accepted .idr-original .idr-text{text-decoration:line-through}
+.iterate-diff-row.accepted .idr-suggest{
+  background:var(--success-bg);
+  box-shadow:inset 3px 0 0 var(--success);
+}
+.iterate-diff-row.accepted .idr-edit::before{
+  content:'✓ 已采纳';
+  display:inline-flex;align-items:center;
+  font-size:11px;font-weight:600;color:var(--success);
+  background:var(--success-bg);border:1px solid var(--success);
+  border-radius:3px;padding:2px 8px;align-self:flex-start;
+}
+.iterate-diff-row.accepted .idr-actions button.accept{background:var(--success);color:#fff;border-color:var(--success)}
+.iterate-diff-row.accepted .idr-actions button.reject{opacity:.35;pointer-events:none}
+.iterate-diff-row.rejected{
+  opacity:.62;
+  background:var(--bg);
+  border-color:var(--border);
+}
+.iterate-diff-row.rejected .idr-suggest .idr-text{text-decoration:line-through;opacity:.65}
+.iterate-diff-row.rejected .idr-edit::before{
+  content:'✕ 已拒绝';
+  display:inline-flex;align-items:center;
+  font-size:11px;font-weight:600;color:var(--danger);
+  background:var(--danger-bg);border:1px solid var(--danger);
+  border-radius:3px;padding:2px 8px;align-self:flex-start;
+}
+.iterate-diff-row.rejected .idr-actions button.reject{background:var(--danger);color:#fff;border-color:var(--danger)}
+.iterate-diff-row.rejected .idr-actions button.accept{opacity:.35;pointer-events:none}
+.iterate-diff-row.rejected .idr-edit textarea,
+.iterate-diff-row.rejected .idr-edit input{background:var(--bg);color:var(--text3)}
 
 /* ===== AI Extract Result (preview step) ===== */
 .aiExtractResult{margin-top:16px}
@@ -499,6 +538,7 @@ table a:hover{text-decoration:underline}
   display:grid;grid-template-columns:repeat(3,1fr);
   gap:14px;margin-bottom:18px;
 }
+.stat-grid.cols-4{grid-template-columns:repeat(4,1fr)}
 .stat-card{
   background:var(--surface);padding:16px 18px;
   border-radius:var(--radius);border:1px solid var(--border);
@@ -842,7 +882,7 @@ table a:hover{text-decoration:underline}
     <div class="page" id="page-review-queue">
       <div class="page-title">卡片审核</div>
 
-      <div class="stat-grid">
+      <div class="stat-grid cols-4">
         <div class="stat-card accent-orange">
           <div class="accent-line"></div>
           <div class="label">待我审核</div>
@@ -1156,6 +1196,22 @@ table a:hover{text-decoration:underline}
 
 <!-- ━━━ Toast 容器 ━━━ -->
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- ━━━ 版本历史模态框 ━━━ -->
+<div class="modal-overlay" id="versionsModal">
+  <div class="modal" style="width:680px">
+    <div class="modal-header">
+      <span>版本历史</span>
+      <span class="close" onclick="closeVersionsModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div id="versionsModalBody"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeVersionsModal()">关闭</button>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>

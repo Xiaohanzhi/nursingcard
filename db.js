@@ -179,6 +179,7 @@ function initDb() {
   }
   if (!state.users) state.users = [];
   if (!state.cards) state.cards = [];
+  state.cards.forEach(c => { if (!c.lineId) c.lineId = c.id; });
   if (!state.extractTasks) state.extractTasks = [];
   if (!state.uploadedFiles) state.uploadedFiles = [];
   if (!state.literature) state.literature = [];

@@ -102,6 +102,7 @@ function cardPublic(c) {
 app.get("/api/cards", auth, (req, res) => {
   const { status, keyword, isCommon } = req.query;
   let list = db().cards;
+  if (req.query.includeHistory !== "1") list = list.filter(c => c.status !== "superseded");
   if (status) list = list.filter(c => c.status === status);
   if (isCommon !== undefined && isCommon !== "") list = list.filter(c => String(c.isCommon) === isCommon);
   if (keyword) {
@@ -119,8 +120,10 @@ app.post("/api/cards", auth, requireRole("engineer", "admin"), (req, res) => {
   const cardType = type || "护理问题卡";
   if (cardType === "护理问题卡" && !questionName) return res.status(400).json({ error: "护理问题名称为必填" });
   const isNursing = cardType === "护理问题卡";
+  const cardId = dbLib.nextId("kc");
   const card = {
-    id: dbLib.nextId("kc"),
+    id: cardId,
+    lineId: cardId,
     name, type: cardType, disease: disease || "AMI", isCommon: !!isCommon,
     version: "v0.1", status: "draft", scene: "待编辑",
     questionName: isNursing ? (questionName || "") : "",
@@ -140,6 +143,15 @@ app.get("/api/cards/:id", auth, (req, res) => {
   const c = db().cards.find(x => x.id === req.params.id);
   if (!c) return res.status(404).json({ error: "卡片不存在" });
   res.json(cardPublic(c));
+});
+
+app.get("/api/cards/:id/versions", auth, (req, res) => {
+  const c = db().cards.find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: "卡片不存在" });
+  const lineId = c.lineId || c.id;
+  const list = db().cards.filter(x => (x.lineId || x.id) === lineId)
+    .slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  res.json(list.map(cardPublic));
 });
 
 app.put("/api/cards/:id", auth, requireRole("engineer", "admin"), (req, res) => {
@@ -167,6 +179,7 @@ app.post("/api/cards/:id/new-version", auth, requireRole("engineer", "admin"), (
   if (src.status !== "published") return res.status(400).json({ error: "仅已定稿卡片可新建版本" });
   const copy = JSON.parse(JSON.stringify(src));
   copy.id = dbLib.nextId("kc");
+  copy.lineId = src.lineId || src.id;
   copy.version = bumpMinor(src.version);
   copy.status = "draft";
   copy.aiGenerated = false;
@@ -222,6 +235,12 @@ app.post("/api/cards/:id/review", auth, (req, res) => {
     if (lv === 1) {
       c.status = "review2";
   } else {
+      db().cards.forEach(x => {
+        if ((x.lineId || x.id) === (c.lineId || c.id) && x.status === "published" && x.id !== c.id) {
+          x.status = "superseded";
+          x.updatedAt = dbLib.now();
+        }
+      });
       c.status = "published";
       c.version = c.version === "v0.1" ? "v1.0" : c.version;
       c.rejectReason = "";
@@ -397,6 +416,21 @@ app.get("/api/literature/:id/download", auth, (req, res) => {
   res.download(f.path, f.name);
 });
 
+app.put("/api/literature/:id", auth, requireRole("engineer", "admin"), (req, res) => {
+  const f = db().literature.find(x => x.id === req.params.id);
+  if (!f) return res.status(404).json({ error: "文献不存在" });
+  const name = String((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ error: "文献名称不能为空" });
+  const ext = path.extname(name).toLowerCase();
+  if (!cfg().files.allowedExtensions.includes(ext)) {
+    return res.status(400).json({ error: "扩展名需为 " + cfg().files.allowedExtensions.join(" / ") });
+  }
+  f.name = name;
+  f.ext = ext;
+  dbLib.saveDb();
+  res.json({ success: true, name: f.name });
+});
+
 app.delete("/api/literature/:id", auth, requireRole("engineer", "admin"), (req, res) => {
   const idx = db().literature.findIndex(f => f.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: "文献不存在" });
@@ -410,7 +444,7 @@ app.delete("/api/literature/:id", auth, requireRole("engineer", "admin"), (req, 
 /* ============ AI 抽取 ============ */
 const DEFAULT_PROMPT = "请基于当前文献优化现有护理问题卡内容。";
 
-const CARD_STATUS_LABEL = { draft: "草稿", review1: "一级审核中", review2: "二级审核中", published: "已定稿" };
+const CARD_STATUS_LABEL = { draft: "草稿", review1: "一级审核中", review2: "二级审核中", published: "已定稿", superseded: "已停用" };
 const CARD_TYPES = ["护理问题卡", "评估卡", "风险预警卡", "宣教卡", "应急预案卡", "交接班卡", "随访卡"];
 
 function cardToDify(c) {
@@ -580,6 +614,7 @@ app.post("/api/extract/:id/confirm", auth, requireRole("engineer", "admin"), (re
   }
 
   base.id = dbLib.nextId("kc");
+  base.lineId = target.lineId || target.id;
   base.version = bumpMinor(target.version);
   base.status = "draft";
   base.aiGenerated = true;
