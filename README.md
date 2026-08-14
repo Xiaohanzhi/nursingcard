@@ -107,4 +107,6 @@ curl "http://服务器:3742/api/linkage/content?cardIds=card1,card2" -H "Authori
 ## 数据与备份
 - 数据文件：`data/db.json`（卡片、账号、抽取历史、临时文件登记）
 - 上传文件：`uploads/tmp/`（超过 TTL 自动清理）
-- 备份：停止服务后复制上述两个位置即可；或直接拷贝 `data/db.json`。
+- 自动备份：每次数据变更时自动在 `data/backups/` 生成带时间戳的副本（保留最近 20 份）
+- 手动备份：停止服务后复制 `data/db.json` 与 `uploads/literature/` 即可
+- 恢复：将 `data/backups/` 中需要的备份改名为 `db.json` 覆盖回 `data/` 后重启

@@ -199,7 +199,6 @@ function renderCardDetail(c) {
     '<span class="tag ' + typeTagOf(c.type) + '">' + esc(c.type) + '</span>' +
     '<span class="tag ' + (c.status === 'published' ? 'tag-green' : (c.status === 'draft' ? 'tag-gray' : 'tag-orange')) + '">' + (STATUS_MAP[c.status] || c.status) + '</span>' +
     (c.isCommon ? '<span class="tag tag-blue">共性</span>' : '<span class="tag tag-gray">专病</span>') +
-    '<span style="font-size:12px;color:var(--text3)">' + esc(c.disease) + ' · ' + esc(c.scene || '') + '</span>' +
     (c.aiGenerated ? '<span class="tag tag-purple">🤖 AI 迭代</span>' : '') +
     '</div>';
   html += c.type === '护理问题卡' ? renderReviewFields(c) : renderGenericFields(c);

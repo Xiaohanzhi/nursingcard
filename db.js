@@ -140,22 +140,49 @@ function seed() {
   return { version: 2, users, cards, extractTasks: [], uploadedFiles: [], literature: [] };
 }
 
+function latestBackup() {
+  const dir = path.join(DATA_DIR, "backups");
+  if (!fs.existsSync(dir)) return null;
+  const files = fs.readdirSync(dir).filter(f => f.startsWith("db-") && f.endsWith(".json")).sort();
+  return files.length ? path.join(dir, files[files.length - 1]) : null;
+}
+
+function restoreFromBackup() {
+  const b = latestBackup();
+  if (!b) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(b, "utf8"));
+    console.log("db.json 缺失或损坏，已从备份恢复：" + path.basename(b));
+    return data;
+  } catch (e) {
+    console.log("备份恢复失败：" + b);
+    return null;
+  }
+}
+
 function initDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   if (!fs.existsSync(LITERATURE_DIR)) fs.mkdirSync(LITERATURE_DIR, { recursive: true });
   if (fs.existsSync(DB_PATH)) {
-    try { state = JSON.parse(fs.readFileSync(DB_PATH, "utf8")); }
-    catch (e) { state = seed(); }
-    if (!state.users) state.users = [];
-    if (!state.cards) state.cards = [];
-    if (!state.extractTasks) state.extractTasks = [];
-    if (!state.uploadedFiles) state.uploadedFiles = [];
-    if (!state.literature) state.literature = [];
-    if (state.version !== 2) state.version = 2;
+    try {
+      state = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
+    } catch (e) {
+      state = restoreFromBackup();
+    }
   } else {
-    state = seed();
+    state = restoreFromBackup();
   }
+  if (!state) {
+    state = seed();
+    console.log("初始化种子数据（无现有数据且无可用备份）");
+  }
+  if (!state.users) state.users = [];
+  if (!state.cards) state.cards = [];
+  if (!state.extractTasks) state.extractTasks = [];
+  if (!state.uploadedFiles) state.uploadedFiles = [];
+  if (!state.literature) state.literature = [];
+  if (state.version !== 2) state.version = 2;
   saveDb();
   return state;
 }
@@ -169,6 +196,23 @@ function saveDb() {
   const tmp = DB_PATH + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2), "utf8");
   fs.renameSync(tmp, DB_PATH);
+  backupDb();
+}
+
+function backupDb() {
+  const dir = path.join(DATA_DIR, "backups");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  const name = "db-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + ".json";
+  const target = path.join(dir, name);
+  fs.copyFileSync(DB_PATH, target);
+  // 只保留最近 20 份备份
+  const files = fs.readdirSync(dir).filter(f => f.startsWith("db-")).sort();
+  while (files.length > 20) {
+    const old = files.shift();
+    try { fs.unlinkSync(path.join(dir, old)); } catch (e) { /* 忽略 */ }
+  }
 }
 
 module.exports = { initDb, getDb, saveDb, nextId, now, UPLOAD_DIR, LITERATURE_DIR };

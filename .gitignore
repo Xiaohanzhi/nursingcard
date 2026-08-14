@@ -3,6 +3,7 @@ node_modules/
 
 # 运行时数据与临时文件（服务启动时会自动重建目录）
 data/db.json
+data/backups/
 uploads/
 *.log
 
