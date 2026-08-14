@@ -143,6 +143,12 @@ async function main() {
     await sleep(800);
     check("一审队列空（初始化全已定稿，仅空态行）", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 1);
     check("一审队列空态提示", await evalJs("document.getElementById('reviewTableBody').textContent.includes('队列已清空')"));
+    await evalJs("switchReviewTab('done')");
+    await sleep(500);
+    check("审核历史 7 条生效版", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 7);
+    check("审核历史无进入审核按钮", await evalJs("!document.getElementById('reviewTableBody').textContent.includes('进入审核')"));
+    check("审核历史有查看详情", await evalJs("document.getElementById('reviewTableBody').textContent.includes('查看详情')"));
+    await evalJs("switchReviewTab('l1')");
 
     await evalJs("showPage('settings')");
     await sleep(800);

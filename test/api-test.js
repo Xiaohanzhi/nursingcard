@@ -143,6 +143,8 @@ async function main() {
   check("停用版不可再新建版本", r.status === 400);
   r = await req("GET", "/api/cards/" + verId + "/versions", null, admin);
   check("版本历史含新旧两版", r.status === 200 && r.json.length === 2 && r.json.some(v => v.status === "superseded") && r.json.some(v => v.status === "published"));
+  r = await req("GET", "/api/review/history", null, admin);
+  check("审核历史含新旧两版", r.status === 200 && r.json.some(x => x.id === newId && x.status === "superseded") && r.json.some(x => x.id === verId && x.status === "published"));
   r = await req("GET", "/api/linkage/content", null, admin);
   check("聚合仅含生效版", r.status === 200 && !r.json.cardIds.includes(newId));
 

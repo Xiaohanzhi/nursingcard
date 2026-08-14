@@ -917,7 +917,7 @@ table a:hover{text-decoration:underline}
           二级待审核 <span class="tag tag-blue" id="cnt-l2">0</span>
         </div>
         <div class="tab-item" onclick="switchReviewTab('done',this)">
-          已审核 <span class="tag tag-green" id="cnt-done">0</span>
+          审核历史 <span class="tag tag-green" id="cnt-done">0</span>
         </div>
       </div>
 
@@ -1063,6 +1063,7 @@ table a:hover{text-decoration:underline}
         <div class="split-left">
           <div class="card-title">卡片内容审核</div>
           <div id="reviewModalBody"></div>
+          <div class="field-note" id="reviewReadonlyHint" style="display:none;color:var(--warning-text)">当前账号仅可查看，不能执行审核操作。</div>
           <div style="margin-top:16px;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px">
             <div class="form-group" style="margin:0">
               <label>审核意见</label>
@@ -1080,7 +1081,7 @@ table a:hover{text-decoration:underline}
     </div>
     <div class="modal-footer">
       <button class="btn btn-default" onclick="closeReviewModal()">取消</button>
-      <button class="btn btn-danger" onclick="reviewAction('退回')">↩ 退回修改</button>
+      <button class="btn btn-danger" id="reviewRejectBtn" onclick="reviewAction('退回')">↩ 退回修改</button>
       <button class="btn btn-success" onclick="reviewAction('通过')" id="reviewPassBtn">✅ 通过 → <span id="reviewNextLabel">二级审核</span></button>
     </div>
   </div>

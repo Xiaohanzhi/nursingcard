@@ -264,7 +264,8 @@ app.get("/api/review/pending", auth, (req, res) => {
 });
 
 app.get("/api/review/history", auth, (req, res) => {
-  const list = db().cards.filter(c => c.status === "published").slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const list = db().cards.filter(c => c.status === "published" || c.status === "superseded")
+    .slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   res.json(list.map(cardPublic));
 });
 

@@ -83,6 +83,7 @@ function afterLogin() {
   document.getElementById('userName').textContent = CURRENT_USER.displayName;
   document.getElementById('userRole').textContent = ROLE_MAP[CURRENT_USER.role] || CURRENT_USER.role;
   document.getElementById('navSettings').style.display = CURRENT_USER.role === 'admin' ? '' : 'none';
+  currentReviewTab = CURRENT_USER.role === 'reviewer2' ? 'l2' : 'l1';
   refreshAll();
 }
 
@@ -276,8 +277,11 @@ function newVersionFromDetail() {
   api('/cards/' + c.id + '/new-version', { method: 'POST', body: {} })
     .then(function (r) {
       closeCardDetail();
-      showToast('已创建新版本草稿：' + r.version, 'success');
       loadCards();
+      api('/cards/' + r.id).then(function (nc) {
+        openEditCardModal(nc);
+        showToast('已创建新版本草稿 ' + r.version + '，可直接编辑', 'success');
+      }).catch(showErr);
     }).catch(showErr);
 }
 function goReviewFromDetail() {
@@ -476,7 +480,7 @@ function switchReviewTab(level, el) {
   document.querySelectorAll('.tab-item').forEach(function (t) { t.classList.remove('active'); });
   if (el) el.classList.add('active');
   else document.querySelector('.tab-item[onclick*="' + level + '"]').classList.add('active');
-  var title = level === 'l1' ? '一级待审核' : (level === 'l2' ? '二级待审核' : '已审核');
+  var title = level === 'l1' ? '一级待审核' : (level === 'l2' ? '二级待审核' : '审核历史');
   var path = level === 'done' ? '/review/history' : '/review/pending?level=' + (level === 'l1' ? '1' : '2');
   api(path).then(function (list) {
     renderReviewList(list, title);
@@ -487,20 +491,31 @@ function renderReviewList(list, title) {
   if (!list.length) {
     tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="icon">🎉</div><div>' + title + '队列已清空</div></div></td></tr>';
   } else {
+    var isDone = currentReviewTab === 'done';
     tbody.innerHTML = list.map(function (c) {
+      var opHtml;
+      if (isDone) {
+        var stCls = c.status === 'superseded' ? 'tag-red' : 'tag-green';
+        opHtml = '<span class="tag ' + stCls + '">' + (STATUS_MAP[c.status] || c.status) + '</span> | <a onclick="openCardVersion(\'' + c.id + '\')">查看详情</a>';
+      } else {
+        var lv = c.status === 'review1' ? 1 : 2;
+        opHtml = canReviewLevel(lv)
+          ? '<button class="btn btn-sm btn-primary" onclick="openReviewPanel(\'' + c.id + '\')">进入审核</button>'
+          : '<a onclick="openCardDetail(\'' + c.id + '\')">查看</a>';
+      }
       return '<tr>' +
-        '<td><a onclick="openReviewPanel(\'' + c.id + '\')">' + esc(c.name) + '</a></td>' +
+        '<td>' + esc(c.name) + '</td>' +
         '<td><span class="tag ' + typeTagOf(c.type) + '">' + esc(c.type) + '</span></td>' +
         '<td><code style="font-size:12px;color:var(--text2)">' + esc(c.version) + '</code></td>' +
         '<td>' + esc(c.creatorName || '') + '</td>' +
         '<td style="font-size:12px;color:var(--text2)">' + esc(c.updatedAt || '') + '</td>' +
-        '<td><button class="btn btn-sm btn-primary" onclick="openReviewPanel(\'' + c.id + '\')">进入审核</button></td>' +
+        '<td>' + opHtml + '</td>' +
         '</tr>';
     }).join('');
   }
   var l1 = CARDS.filter(function (c) { return c.status === 'review1'; }).length;
   var l2 = CARDS.filter(function (c) { return c.status === 'review2'; }).length;
-  var done = CARDS.filter(function (c) { return c.status === 'published'; }).length;
+  var done = CARDS.filter(function (c) { return c.status === 'published' || c.status === 'superseded'; }).length;
   var rej = CARDS.filter(function (c) { return c.status === 'draft' && c.rejectReason; }).length;
   document.getElementById('cnt-l1').textContent = l1;
   document.getElementById('cnt-l2').textContent = l2;
@@ -509,6 +524,10 @@ function renderReviewList(list, title) {
   document.getElementById('reviewStat-done').textContent = done;
   document.getElementById('reviewStat-rejected').textContent = rej;
   document.getElementById('reviewStat-avg').innerHTML = '—<span style="font-size:13px;color:var(--text2);font-weight:400"> 天</span>';
+}
+function canReviewLevel(level) {
+  var r = CURRENT_USER ? CURRENT_USER.role : '';
+  return level === 1 ? (r === 'reviewer1' || r === 'admin') : (r === 'reviewer2' || r === 'admin');
 }
 var PRIORITY_CLASS = { '首优': 'tag-red', '次优': 'tag-orange', '次次优': 'tag-blue', '多学科（辅助）': 'tag-purple', '辅助': 'tag-purple' };
 function renderMeasuresHtml(measures) {
@@ -561,6 +580,11 @@ function openReviewPanel(cardId) {
     }).join('')
     : '<div class="empty-state"><div>暂无原文引用</div></div>';
   document.getElementById('reviewComment').value = '';
+  var lv = c.status === 'review1' ? 1 : 2;
+  var canOp = canReviewLevel(lv);
+  document.getElementById('reviewRejectBtn').style.display = canOp ? '' : 'none';
+  document.getElementById('reviewPassBtn').style.display = canOp ? '' : 'none';
+  document.getElementById('reviewReadonlyHint').style.display = canOp ? 'none' : '';
   document.getElementById('reviewModal').classList.add('show');
 }
 function closeReviewModal() {
@@ -572,6 +596,7 @@ function reviewAction(action) {
   if (action === '退回') { openRejectModal(); return; }
   var c = currentReviewCard;
   var level = c.status === 'review1' ? 1 : 2;
+  if (!canReviewLevel(level)) { showToast('当前账号无审核权限', 'error'); return; }
   api('/cards/' + c.id + '/review', { method: 'POST', body: { level: level, action: 'approve', comment: '' } })
     .then(function (r) {
       showToast(level === 1 ? '一审通过，已转入二审队列' : '二审通过，已定稿发布（' + r.version + '）', 'success');
@@ -593,6 +618,7 @@ function confirmReject() {
   if (!reason) { showToast('请填写退回原因', 'error'); return; }
   var c = currentReviewCard;
   var level = c.status === 'review1' ? 1 : 2;
+  if (!canReviewLevel(level)) { showToast('当前账号无审核权限', 'error'); return; }
   api('/cards/' + c.id + '/review', { method: 'POST', body: { level: level, action: 'reject', comment: reason } })
     .then(function () {
       showToast('已退回：' + c.name, 'warn');
