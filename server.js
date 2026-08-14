@@ -19,6 +19,27 @@ function findUploadFile(fileId) {
   return db().literature.find(f => f.id === fileId) || db().uploadedFiles.find(f => f.id === fileId);
 }
 
+function diseaseByName(name) {
+  const n = String(name || "").trim();
+  return n ? db().diseases.find(x => x.name === n) : null;
+}
+
+function diseaseName(id) {
+  const d = db().diseases.find(x => x.id === id);
+  return d ? d.name : "";
+}
+
+function ensureDisease(name) {
+  const n = String(name || "").trim();
+  if (!n) return null;
+  let d = diseaseByName(n);
+  if (!d) {
+    d = { id: dbLib.nextId("dis"), name: n, status: "active", createdAt: dbLib.now(), updatedAt: dbLib.now() };
+    db().diseases.push(d);
+  }
+  return d;
+}
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -90,6 +111,57 @@ app.post("/api/auth/sso", (req, res) => {
   return res.status(400).json({ error: "SSO 对接待实现：请配置外部身份校验接口" });
 });
 
+/* ============ 病种接口 ============ */
+function diseaseRefCount(id) {
+  return db().cards.filter(c => c.diseaseId === id).length + db().literature.filter(f => f.diseaseId === id).length;
+}
+
+app.get("/api/diseases", auth, (req, res) => {
+  const list = db().diseases.slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  res.json(list.map(d => ({ ...d, refCount: diseaseRefCount(d.id) })));
+});
+
+app.post("/api/diseases", auth, requireRole("admin"), (req, res) => {
+  const name = String((req.body || {}).name || "").trim();
+  if (!name) return res.status(400).json({ error: "病种名称不能为空" });
+  if (db().diseases.some(d => d.name === name)) return res.status(400).json({ error: "病种名称已存在" });
+  const d = { id: dbLib.nextId("dis"), name, status: "active", createdAt: dbLib.now(), updatedAt: dbLib.now() };
+  db().diseases.push(d);
+  dbLib.saveDb();
+  res.json({ ...d, refCount: 0 });
+});
+
+app.put("/api/diseases/:id", auth, requireRole("admin"), (req, res) => {
+  const d = db().diseases.find(x => x.id === req.params.id);
+  if (!d) return res.status(404).json({ error: "病种不存在" });
+  const { name, status } = req.body || {};
+  if (name !== undefined) {
+    const nn = String(name).trim();
+    if (!nn) return res.status(400).json({ error: "病种名称不能为空" });
+    if (db().diseases.some(x => x.id !== d.id && x.name === nn)) return res.status(400).json({ error: "病种名称已存在" });
+    d.name = nn;
+    d.updatedAt = dbLib.now();
+    db().cards.forEach(c => { if (c.diseaseId === d.id) c.disease = nn; });
+  }
+  if (status !== undefined) {
+    if (!["active", "inactive"].includes(status)) return res.status(400).json({ error: "无效状态" });
+    d.status = status;
+    d.updatedAt = dbLib.now();
+  }
+  dbLib.saveDb();
+  res.json({ ...d, refCount: diseaseRefCount(d.id) });
+});
+
+app.delete("/api/diseases/:id", auth, requireRole("admin"), (req, res) => {
+  const d = db().diseases.find(x => x.id === req.params.id);
+  if (!d) return res.status(404).json({ error: "病种不存在" });
+  if (diseaseRefCount(d.id) > 0) return res.status(400).json({ error: "该病种已被卡片或文献引用，无法删除（可停用）" });
+  const idx = db().diseases.findIndex(x => x.id === req.params.id);
+  db().diseases.splice(idx, 1);
+  dbLib.saveDb();
+  res.json({ success: true });
+});
+
 /* ============ 卡片接口 ============ */
 function cardPublic(c) {
   return {
@@ -103,6 +175,7 @@ app.get("/api/cards", auth, (req, res) => {
   const { status, keyword, isCommon } = req.query;
   let list = db().cards;
   if (req.query.includeHistory !== "1") list = list.filter(c => c.status !== "superseded");
+  if (req.query.diseaseId) list = list.filter(c => c.diseaseId === req.query.diseaseId);
   if (status) list = list.filter(c => c.status === status);
   if (isCommon !== undefined && isCommon !== "") list = list.filter(c => String(c.isCommon) === isCommon);
   if (keyword) {
@@ -114,17 +187,19 @@ app.get("/api/cards", auth, (req, res) => {
 });
 
 app.post("/api/cards", auth, requireRole("engineer", "admin"), (req, res) => {
-  const { name, type, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
+  const { name, type, disease, diseaseId, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
   if (!name) return res.status(400).json({ error: "卡片名称为必填" });
   if (type && !CARD_TYPES.includes(type)) return res.status(400).json({ error: "无效卡片类型" });
   const cardType = type || "护理问题卡";
   if (cardType === "护理问题卡" && !questionName) return res.status(400).json({ error: "护理问题名称为必填" });
   const isNursing = cardType === "护理问题卡";
+  const dis = diseaseId ? db().diseases.find(x => x.id === diseaseId) : (diseaseByName(disease) || diseaseByName("AMI"));
+  if (!dis) return res.status(400).json({ error: "无效病种" });
   const cardId = dbLib.nextId("kc");
   const card = {
     id: cardId,
     lineId: cardId,
-    name, type: cardType, disease: disease || "AMI", isCommon: !!isCommon,
+    name, type: cardType, disease: dis.name, diseaseId: dis.id, isCommon: !!isCommon,
     version: "v0.1", status: "draft", scene: "待编辑",
     questionName: isNursing ? (questionName || "") : "",
     goal: isNursing ? (goal || "") : "",
@@ -158,9 +233,17 @@ app.put("/api/cards/:id", auth, requireRole("engineer", "admin"), (req, res) => 
   const c = db().cards.find(x => x.id === req.params.id);
   if (!c) return res.status(404).json({ error: "卡片不存在" });
   if (c.status !== "draft") return res.status(400).json({ error: "仅草稿状态可编辑" });
-  const { name, disease, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
+  const { name, disease, diseaseId, isCommon, questionName, goal, triggerCond, measures, refs } = req.body || {};
   if (name) c.name = name;
-  if (disease !== undefined) c.disease = disease;
+  if (diseaseId !== undefined) {
+    const dis = db().diseases.find(x => x.id === diseaseId);
+    if (!dis) return res.status(400).json({ error: "无效病种" });
+    c.diseaseId = dis.id;
+    c.disease = dis.name;
+  } else if (disease !== undefined) {
+    const dis = diseaseByName(disease) || ensureDisease(disease);
+    if (dis) { c.diseaseId = dis.id; c.disease = dis.name; }
+  }
   if (isCommon !== undefined) c.isCommon = !!isCommon;
   if (questionName !== undefined) c.questionName = questionName;
   if (goal !== undefined) c.goal = goal;
@@ -289,13 +372,15 @@ function buildKnowledgeAggregate(cards) {
 app.get("/api/linkage/cards", auth, (req, res) => {
   const list = db().cards.filter(c => c.status === "published")
     .slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
-    .map(c => ({ id: c.id, name: c.name, questionName: c.questionName, version: c.version }));
+    .map(c => ({ id: c.id, name: c.name, questionName: c.questionName, version: c.version, diseaseId: c.diseaseId, disease: c.disease }));
   res.json(list);
 });
 
 app.get("/api/linkage/content", auth, (req, res) => {
   let list = db().cards.filter(c => c.status === "published")
     .slice().sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  const disFilter = req.query.diseaseId || (req.query.disease ? (diseaseByName(req.query.disease) || {}).id : null);
+  if (disFilter) list = list.filter(c => c.diseaseId === disFilter);
   const ids = String(req.query.cardIds || "").split(",").map(s => s.trim()).filter(Boolean);
   if (ids.length) list = list.filter(c => ids.includes(c.id));
   res.json({ count: list.length, cardIds: list.map(c => c.id), content: buildKnowledgeAggregate(list) });
@@ -385,12 +470,24 @@ app.post("/api/literature", auth, requireRole("engineer", "admin"), (req, res) =
       try { require("fs").unlinkSync(req.file.path); } catch (e) { /* 忽略 */ }
       return res.status(400).json({ error: "文件超过大小限制（" + cfg().files.maxSizeMb + "MB）" });
     }
+    const dis = db().diseases.find(x => x.id === String((req.body || {}).diseaseId || ""));
+    if (!dis) {
+      try { require("fs").unlinkSync(req.file.path); } catch (e) { /* 忽略 */ }
+      return res.status(400).json({ error: "请选择文献所属病种" });
+    }
+    const publishedAt = String((req.body || {}).publishedAt || "").trim();
+    if (!/^\d{4}-\d{2}$/.test(publishedAt)) {
+      try { require("fs").unlinkSync(req.file.path); } catch (e) { /* 忽略 */ }
+      return res.status(400).json({ error: "发表时间格式应为 YYYY-MM" });
+    }
     const lit = {
       id: path.basename(req.file.filename, path.extname(req.file.filename)),
       name,
       ext: path.extname(name).toLowerCase(),
       size: req.file.size,
       path: req.file.path,
+      diseaseId: dis.id,
+      publishedAt,
       uploadedBy: req.user.id,
       uploadedAt: dbLib.now()
     };
@@ -404,8 +501,12 @@ app.get("/api/literature", auth, (req, res) => {
   const kw = String(req.query.keyword || "").trim().toLowerCase();
   let list = db().literature.slice().sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   if (kw) list = list.filter(f => f.name.toLowerCase().includes(kw));
+  if (req.query.diseaseId) list = list.filter(f => f.diseaseId === req.query.diseaseId);
+  if (req.query.yearFrom) list = list.filter(f => parseInt(String(f.publishedAt).slice(0, 4), 10) >= parseInt(req.query.yearFrom, 10));
+  if (req.query.yearTo) list = list.filter(f => parseInt(String(f.publishedAt).slice(0, 4), 10) <= parseInt(req.query.yearTo, 10));
   res.json(list.map(f => ({
     id: f.id, name: f.name, ext: f.ext, size: f.size,
+    diseaseId: f.diseaseId, diseaseName: diseaseName(f.diseaseId), publishedAt: f.publishedAt,
     uploadedBy: f.uploadedBy, uploadedAt: f.uploadedAt,
     creatorName: userName(f.uploadedBy)
   })));
@@ -420,14 +521,27 @@ app.get("/api/literature/:id/download", auth, (req, res) => {
 app.put("/api/literature/:id", auth, requireRole("engineer", "admin"), (req, res) => {
   const f = db().literature.find(x => x.id === req.params.id);
   if (!f) return res.status(404).json({ error: "文献不存在" });
-  const name = String((req.body || {}).name || "").trim();
-  if (!name) return res.status(400).json({ error: "文献名称不能为空" });
-  const ext = path.extname(name).toLowerCase();
-  if (!cfg().files.allowedExtensions.includes(ext)) {
-    return res.status(400).json({ error: "扩展名需为 " + cfg().files.allowedExtensions.join(" / ") });
+  const { name, diseaseId, publishedAt } = req.body || {};
+  if (name !== undefined) {
+    const nn = String(name).trim();
+    if (!nn) return res.status(400).json({ error: "文献名称不能为空" });
+    const ext = path.extname(nn).toLowerCase();
+    if (!cfg().files.allowedExtensions.includes(ext)) {
+      return res.status(400).json({ error: "扩展名需为 " + cfg().files.allowedExtensions.join(" / ") });
+    }
+    f.name = nn;
+    f.ext = ext;
   }
-  f.name = name;
-  f.ext = ext;
+  if (diseaseId !== undefined) {
+    const dis = db().diseases.find(x => x.id === diseaseId);
+    if (!dis) return res.status(400).json({ error: "无效病种" });
+    f.diseaseId = dis.id;
+  }
+  if (publishedAt !== undefined) {
+    const pp = String(publishedAt).trim();
+    if (!/^\d{4}-\d{2}$/.test(pp)) return res.status(400).json({ error: "发表时间格式应为 YYYY-MM" });
+    f.publishedAt = pp;
+  }
   dbLib.saveDb();
   res.json({ success: true, name: f.name });
 });
@@ -546,7 +660,11 @@ function applyField(card, field, value) {
     case "护理问题名称": card.questionName = String(v); break;
     case "护理目标": card.goal = String(v); break;
     case "护理问题触发": card.triggerCond = String(v); break;
-    case "关联病种": card.disease = String(v); break;
+    case "关联病种": {
+      const dis = diseaseByName(v) || ensureDisease(v);
+      if (dis) { card.diseaseId = dis.id; card.disease = dis.name; }
+      break;
+    }
     case "共性/专病": card.isCommon = (v === "true" || v === true); break;
     case "推荐护理措施":
       if (typeof v === "string") {

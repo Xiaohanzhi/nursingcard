@@ -52,15 +52,28 @@ JSON 输入/输出契约详见 [docs/dify-contract.md](docs/dify-contract.md)。
 
 ## 文献管理
 
-上传的文献永久保存在 `uploads/literature/`（登记于 `data/db.json` 的 `literature`），可在"文献管理"页统一查看/搜索/下载/删除；AI优化卡片可直接选择文献库文献或上传新文献（自动入库）。
+上传的文献永久保存在 `uploads/literature/`（登记于 `data/db.json` 的 `literature`），可在"文献管理"页统一查看/搜索/下载/编辑/删除；AI优化卡片可直接选择文献库文献或上传新文献（自动入库）。上传时先选择/拖入文件，再在弹出窗口中填写**文献名、病种与发表时间（YYYY-MM）**；支持按病种与发表年份筛选。
 
-- `POST /api/literature`：上传（multipart，字段名 `file`）
-- `GET /api/literature?keyword=`：列表/搜索
+- `POST /api/literature`：上传（multipart，字段名 `file`，必填 `diseaseId`、`publishedAt=YYYY-MM`）
+- `GET /api/literature?keyword=&diseaseId=&yearFrom=&yearTo=`：列表/搜索/筛选
 - `GET /api/literature/:id/download`：下载
+- `PUT /api/literature/:id`：编辑名称/病种/发表时间
 - `DELETE /api/literature/:id`：删除
 - `POST /api/settings/cleanup`（管理员）：手动触发临时文件清理
 
 `uploads/tmp/` 仅作过渡目录，超期（`ttlHours`）文件由启动与每小时任务扫描清理，不影响文献库。
+
+## 病种管理
+
+病种为独立数据实体（默认 AMI / 肥胖 / 肺癌，按 id 关联）。管理员在"系统设置 → 病种管理"中可新增/改名/停用/启用/删除病种；改名全局生效（卡片与文献跟随），停用后不再出现在选择与筛选中，被卡片或文献引用的病种不可删除（可停用）。
+
+知识卡片创建/编辑时病种为**下拉选择**（`diseaseId`）；存量数据在启动时自动迁移（按名称匹配建档并补 `diseaseId`）。存量文献发表时间为空，界面显示"待补充"，可在"编辑"中补填。
+
+- `GET /api/diseases`：病种列表（含引用数）
+- `POST /api/diseases`：新增（管理员）
+- `PUT /api/diseases/:id`：改名/停用/启用（管理员）
+- `DELETE /api/diseases/:id`：删除（仅未被引用，管理员）
+- `GET /api/cards?diseaseId=`：按病种筛选卡片
 
 ## 知识卡聚合内容接口
 
@@ -81,7 +94,10 @@ curl http://服务器:3742/api/linkage/cards -H "Authorization: Bearer <token>"
 ```bash
 curl "http://服务器:3742/api/linkage/content" -H "Authorization: Bearer <token>"
 curl "http://服务器:3742/api/linkage/content?cardIds=card1,card2" -H "Authorization: Bearer <token>"
+curl "http://服务器:3742/api/linkage/content?diseaseId=d_ami" -H "Authorization: Bearer <token>"
 ```
+
+`diseaseId` 参数按病种筛选聚合内容（缺省=全部病种），也兼容 `disease=AMI` 名称筛选；`/api/linkage/cards` 返回含 `diseaseId`/`disease`。
 
 返回示例：
 ```json

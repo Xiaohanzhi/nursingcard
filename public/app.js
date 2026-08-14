@@ -4,12 +4,17 @@
 var TOKEN = localStorage.getItem('kc_token') || '';
 var CURRENT_USER = null;
 var CARDS = [];
+var DISEASES = [];
+var LITERATURE = [];
 var selectedFileId = '';
 var selectedCardId = '';
 var currentReviewTab = 'l1';
 var currentReviewCard = null;
 var currentTask = null;
 var editingCardId = null;
+var currentEditLitId = null;
+var pendingUploadFile = null;
+var pendingUploadCb = null;
 var pollTimer = null;
 
 var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿', superseded: '已停用' };
@@ -84,6 +89,7 @@ function afterLogin() {
   document.getElementById('userRole').textContent = ROLE_MAP[CURRENT_USER.role] || CURRENT_USER.role;
   document.getElementById('navSettings').style.display = CURRENT_USER.role === 'admin' ? '' : 'none';
   currentReviewTab = CURRENT_USER.role === 'reviewer2' ? 'l2' : 'l1';
+  loadDiseases();
   refreshAll();
 }
 
@@ -130,10 +136,12 @@ function loadCards() {
   }).catch(showErr);
 }
 function filterCards() {
+  var diseaseId = document.getElementById('filterDisease').value;
   var status = document.getElementById('filterStatus').value;
   var isCommon = document.getElementById('filterCommon').value;
   var kw = document.getElementById('filterKeyword').value.toLowerCase();
   var data = CARDS.filter(function (c) {
+    if (diseaseId && c.diseaseId !== diseaseId) return false;
     if (status && c.status !== status) return false;
     if (isCommon !== '' && String(c.isCommon) !== isCommon) return false;
     if (kw && c.name.toLowerCase().indexOf(kw) === -1 && c.questionName.toLowerCase().indexOf(kw) === -1) return false;
@@ -333,7 +341,9 @@ function openCreateCardModal() {
   document.getElementById('newCardType').value = '护理问题卡';
   updateTypeFields();
   document.getElementById('newCardName').value = '';
-  document.getElementById('newCardDisease').value = 'AMI';
+  var defDisease = DISEASES.find(function (d) { return d.status === 'active' && d.name === 'AMI'; })
+    || DISEASES.find(function (d) { return d.status === 'active'; });
+  document.getElementById('newCardDiseaseId').value = defDisease ? defDisease.id : '';
   document.getElementById('newCardIsCommon').value = 'false';
   document.getElementById('nc_questionName').value = '';
   document.getElementById('nc_goal').value = '';
@@ -349,7 +359,7 @@ function openEditCardModal(c) {
   document.getElementById('newCardType').value = c.type || '护理问题卡';
   updateTypeFields();
   document.getElementById('newCardName').value = c.name || '';
-  document.getElementById('newCardDisease').value = c.disease || '';
+  document.getElementById('newCardDiseaseId').value = c.diseaseId || '';
   document.getElementById('newCardIsCommon').value = String(c.isCommon);
   document.getElementById('nc_questionName').value = c.questionName || '';
   document.getElementById('nc_goal').value = c.goal || '';
@@ -451,12 +461,14 @@ function saveNewCard() {
   var name = document.getElementById('newCardName').value.trim();
   if (!name) { showToast('请填写卡名称', 'error'); return; }
   var type = document.getElementById('newCardType').value;
+  var diseaseId = document.getElementById('newCardDiseaseId').value;
+  if (!diseaseId) { showToast('请选择关联病种', 'error'); return; }
   var questionName = document.getElementById('nc_questionName').value.trim();
   if (type === '护理问题卡' && !questionName) { showToast('请填写护理问题名称', 'error'); return; }
   var payload = {
     name: name,
     type: type,
-    disease: document.getElementById('newCardDisease').value.trim(),
+    diseaseId: diseaseId,
     isCommon: document.getElementById('newCardIsCommon').value === 'true',
     questionName: questionName,
     goal: document.getElementById('nc_goal').value.trim(),
@@ -633,14 +645,18 @@ function confirmReject() {
 function handleFileSelect(input) {
   var f = input.files && input.files[0];
   if (!f) return;
-  uploadToLibrary(f, function (r) {
+  input.value = '';
+  openUploadLitModal(f, function (r) {
     loadLiteratureOptions(r.id);
-    input.value = '';
   });
 }
-function uploadToLibrary(f, afterUpload) {
+function uploadToLibrary(f, afterUpload, meta) {
   var fd = new FormData();
   fd.append('file', f);
+  if (meta) {
+    if (meta.diseaseId) fd.append('diseaseId', meta.diseaseId);
+    if (meta.publishedAt) fd.append('publishedAt', meta.publishedAt);
+  }
   api('/literature', { method: 'POST', body: fd })
     .then(function (r) {
       if (afterUpload) afterUpload(r);
@@ -663,25 +679,38 @@ function loadLiteratureOptions(selectId) {
 function handleLitFileSelect(input) {
   var f = input.files && input.files[0];
   if (!f) return;
-  uploadToLibrary(f, function () { loadLiterature(); input.value = ''; });
+  input.value = '';
+  openUploadLitModal(f, function () {
+    loadLiterature();
+  });
 }
 function loadLiterature() {
   var kw = document.getElementById('litKeyword').value.trim();
-  api('/literature?keyword=' + encodeURIComponent(kw)).then(function (list) {
+  var diseaseId = document.getElementById('litFilterDisease').value;
+  var yearFrom = document.getElementById('litYearFrom').value;
+  var yearTo = document.getElementById('litYearTo').value;
+  var qs = '?keyword=' + encodeURIComponent(kw);
+  if (diseaseId) qs += '&diseaseId=' + encodeURIComponent(diseaseId);
+  if (yearFrom) qs += '&yearFrom=' + encodeURIComponent(yearFrom);
+  if (yearTo) qs += '&yearTo=' + encodeURIComponent(yearTo);
+  api('/literature' + qs).then(function (list) {
+    LITERATURE = list;
     var tbody = document.getElementById('literatureTableBody');
     document.getElementById('totalLiterature').textContent = list.length;
     if (!list.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><div class="icon">📚</div><div>暂无文献，点击右上角"上传文献"</div></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">📚</div><div>暂无文献，点击右上角"上传文献"</div></div></td></tr>';
     } else {
       tbody.innerHTML = list.map(function (f) {
         var size = f.size > 1024 * 1024 ? (f.size / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB';
         return '<tr>' +
           '<td>' + esc(f.name) + '</td>' +
+          '<td><span class="tag tag-blue">' + esc(f.diseaseName || '待补充') + '</span></td>' +
+          '<td>' + (f.publishedAt ? esc(f.publishedAt) : '<span style="color:var(--warning-text)">待补充</span>') + '</td>' +
           '<td><span class="tag tag-gray">' + esc((f.ext || '').replace('.', '').toUpperCase()) + '</span></td>' +
           '<td>' + size + '</td>' +
           '<td>' + esc(f.creatorName || '') + '</td>' +
           '<td style="font-size:12px;color:var(--text2)">' + esc(f.uploadedAt) + '</td>' +
-          '<td><a onclick="renameLiterature(\'' + f.id + '\')">重命名</a> | <a data-name="' + esc(f.name) + '" onclick="downloadLiterature(this,\'' + f.id + '\')">下载</a> | <a style="color:var(--danger)" onclick="deleteLiterature(\'' + f.id + '\')">删除</a></td>' +
+          '<td><a onclick="openEditLitModal(\'' + f.id + '\')">编辑</a> | <a data-name="' + esc(f.name) + '" onclick="downloadLiterature(this,\'' + f.id + '\')">下载</a> | <a style="color:var(--danger)" onclick="deleteLiterature(\'' + f.id + '\')">删除</a></td>' +
           '</tr>';
       }).join('');
     }
@@ -712,15 +741,93 @@ function deleteLiterature(id) {
       showToast('已删除文献', 'success');
     }).catch(showErr);
 }
-function renameLiterature(id) {
-  var name = prompt('请输入新的文献名称（含扩展名，如：2025 ACC指南.pdf）：');
-  if (!name || !name.trim()) return;
-  api('/literature/' + id, { method: 'PUT', body: { name: name.trim() } })
+function openEditLitModal(id) {
+  var f = LITERATURE.find(function (x) { return x.id === id; });
+  if (!f) return;
+  currentEditLitId = id;
+  document.getElementById('editLitName').value = f.name || '';
+  document.getElementById('editLitDiseaseId').value = f.diseaseId || '';
+  populateYearMonth('editLitYear', 'editLitMonth', f.publishedAt || '');
+  document.getElementById('editLitModal').classList.add('show');
+}
+function closeEditLitModal() {
+  document.getElementById('editLitModal').classList.remove('show');
+  currentEditLitId = null;
+}
+function saveEditLiterature() {
+  if (!currentEditLitId) return;
+  var name = document.getElementById('editLitName').value.trim();
+  var diseaseId = document.getElementById('editLitDiseaseId').value;
+  var year = document.getElementById('editLitYear').value;
+  var month = document.getElementById('editLitMonth').value;
+  if (!name) { showToast('请填写文献名称', 'error'); return; }
+  if (!diseaseId) { showToast('请选择病种', 'error'); return; }
+  if (!year || !month) { showToast('请选择发表年份和月份', 'error'); return; }
+  var publishedAt = year + '-' + month;
+  api('/literature/' + currentEditLitId, { method: 'PUT', body: { name: name, diseaseId: diseaseId, publishedAt: publishedAt } })
     .then(function () {
+      closeEditLitModal();
       loadLiterature();
       loadLiteratureOptions();
-      showToast('文献已重命名', 'success');
+      showToast('文献信息已保存', 'success');
     }).catch(showErr);
+}
+
+/* ============ 文献上传弹窗（共用） ============ */
+function populateYearMonth(yearId, monthId, value) {
+  var yearSel = document.getElementById(yearId);
+  var monthSel = document.getElementById(monthId);
+  if (!yearSel || !monthSel) return;
+  var cur = new Date().getFullYear();
+  var keepYear = value ? parseInt(String(value).slice(0, 4), 10) : 0;
+  var years = [];
+  for (var y = cur; y >= 1990; y--) years.push(y);
+  if (keepYear && years.indexOf(keepYear) === -1) years.push(keepYear);
+  yearSel.innerHTML = '<option value="">-- 年份 --</option>' +
+    years.map(function (y) { return '<option value="' + y + '">' + y + ' 年</option>'; }).join('');
+  var months = '';
+  for (var m = 1; m <= 12; m++) {
+    var mm = m < 10 ? '0' + m : String(m);
+    months += '<option value="' + mm + '">' + m + ' 月</option>';
+  }
+  monthSel.innerHTML = '<option value="">-- 月份 --</option>' + months;
+  if (value && /^\d{4}-\d{2}$/.test(value)) {
+    yearSel.value = String(value).slice(0, 4);
+    monthSel.value = String(value).slice(5, 7);
+  }
+}
+function openUploadLitModal(file, afterUpload) {
+  pendingUploadFile = file;
+  pendingUploadCb = afterUpload || null;
+  document.getElementById('uploadLitFileName').textContent = file.name;
+  var size = file.size > 1024 * 1024
+    ? (file.size / 1024 / 1024).toFixed(1) + ' MB'
+    : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+  document.getElementById('uploadLitFileMeta').textContent = '大小：' + size;
+  document.getElementById('uploadLitName').value = file.name;
+  document.getElementById('uploadLitDiseaseId').value = '';
+  populateYearMonth('uploadLitYear', 'uploadLitMonth', '');
+  document.getElementById('uploadLitModal').classList.add('show');
+}
+function closeUploadLitModal() {
+  document.getElementById('uploadLitModal').classList.remove('show');
+  pendingUploadFile = null;
+  pendingUploadCb = null;
+}
+function confirmUploadLiterature() {
+  if (!pendingUploadFile) return;
+  var name = document.getElementById('uploadLitName').value.trim();
+  var diseaseId = document.getElementById('uploadLitDiseaseId').value;
+  var year = document.getElementById('uploadLitYear').value;
+  var month = document.getElementById('uploadLitMonth').value;
+  if (!name) { showToast('请填写文献名称', 'error'); return; }
+  if (!diseaseId) { showToast('请选择病种', 'error'); return; }
+  if (!year || !month) { showToast('请选择发表年份和月份', 'error'); return; }
+  var cb = pendingUploadCb;
+  uploadToLibrary(pendingUploadFile, function (r) {
+    closeUploadLitModal();
+    if (cb) cb(r);
+  }, { diseaseId: diseaseId, publishedAt: year + '-' + month });
 }
 function renderIterateCardList() {
   var kw = document.getElementById('iterateCardSearch') ? document.getElementById('iterateCardSearch').value.toLowerCase() : '';
@@ -981,6 +1088,7 @@ function loadSettings() {
     state.className = 'tag ' + (s.dify.hasApiKey ? 'tag-green' : 'tag-red');
     document.getElementById('setApiKeyHint').textContent = s.dify.hasApiKey ? '当前密钥：' + s.dify.apiKeyMasked + '（输入新值可覆盖）' : '';
   }).catch(showErr);
+  loadDiseases();
 }
 function saveSettings() {
   var payload = {
@@ -1034,6 +1142,93 @@ function changePassword() {
     }).catch(showErr);
 }
 
+/* ============ 病种管理 ============ */
+function loadDiseases() {
+  api('/diseases').then(function (list) {
+    DISEASES = list;
+    var active = list.filter(function (d) { return d.status === 'active'; });
+    var opts = active.map(function (d) { return '<option value="' + d.id + '">' + esc(d.name) + '</option>'; }).join('');
+    var allOpts = '<option value="">全部病种</option>' + opts;
+    var pickOpts = '<option value="">-- 选择病种 --</option>' + opts;
+    function refreshSelect(id, options) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var cur = el.value;
+      el.innerHTML = options;
+      if (cur && list.some(function (d) { return d.id === cur; })) el.value = cur;
+    }
+    refreshSelect('filterDisease', allOpts);
+    refreshSelect('litFilterDisease', allOpts);
+    refreshSelect('newCardDiseaseId', pickOpts);
+    refreshSelect('uploadLitDiseaseId', pickOpts);
+    refreshSelect('editLitDiseaseId', pickOpts);
+    renderDiseaseTable();
+  }).catch(showErr);
+}
+function renderDiseaseTable() {
+  var tbody = document.getElementById('diseaseTableBody');
+  if (!tbody) return;
+  if (!DISEASES.length) {
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><div>暂无病种，可先新增</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = DISEASES.map(function (d) {
+    var stCls = d.status === 'active' ? 'tag-green' : 'tag-gray';
+    var stTxt = d.status === 'active' ? '启用' : '已停用';
+    return '<tr>' +
+      '<td><b>' + esc(d.name) + '</b></td>' +
+      '<td><span class="tag ' + stCls + '">' + stTxt + '</span></td>' +
+      '<td>' + (d.refCount || 0) + '</td>' +
+      '<td><a onclick="renameDisease(\'' + d.id + '\')">改名</a> | ' +
+      '<a onclick="toggleDisease(\'' + d.id + '\')">' + (d.status === 'active' ? '停用' : '启用') + '</a> | ' +
+      '<a style="color:var(--danger)" onclick="deleteDisease(\'' + d.id + '\')">删除</a></td>' +
+      '</tr>';
+  }).join('');
+}
+function addDisease() {
+  var name = document.getElementById('newDiseaseName').value.trim();
+  if (!name) { showToast('请输入病种名称', 'error'); return; }
+  api('/diseases', { method: 'POST', body: { name: name } })
+    .then(function () {
+      document.getElementById('newDiseaseName').value = '';
+      loadDiseases();
+      showToast('病种已新增', 'success');
+    }).catch(showErr);
+}
+function renameDisease(id) {
+  var d = DISEASES.find(function (x) { return x.id === id; });
+  if (!d) return;
+  var nn = prompt('请输入新的病种名称：', d.name);
+  if (!nn || !nn.trim()) return;
+  api('/diseases/' + id, { method: 'PUT', body: { name: nn.trim() } })
+    .then(function () {
+      loadDiseases();
+      loadCards();
+      loadLiterature();
+      showToast('病种已改名，相关数据已同步', 'success');
+    }).catch(showErr);
+}
+function toggleDisease(id) {
+  var d = DISEASES.find(function (x) { return x.id === id; });
+  if (!d) return;
+  var next = d.status === 'active' ? 'inactive' : 'active';
+  api('/diseases/' + id, { method: 'PUT', body: { status: next } })
+    .then(function () {
+      loadDiseases();
+      showToast(next === 'active' ? '病种已启用' : '病种已停用', 'success');
+    }).catch(showErr);
+}
+function deleteDisease(id) {
+  var d = DISEASES.find(function (x) { return x.id === id; });
+  if (!d) return;
+  if (!confirm('确定删除病种「' + d.name + '」？仅未被卡片或文献引用时可删除。')) return;
+  api('/diseases/' + id, { method: 'DELETE' })
+    .then(function () {
+      loadDiseases();
+      showToast('病种已删除', 'success');
+    }).catch(showErr);
+}
+
 /* ============ 工具 ============ */
 function showToast(msg, type) {
   var host = document.getElementById('toastContainer');
@@ -1057,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     dz.addEventListener('drop', function (e) {
       var f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) uploadToLibrary(f, afterUpload);
+      if (f) openUploadLitModal(f, afterUpload);
     });
   }
   bindDropzone('dropzone', function (r) { loadLiteratureOptions(r.id); });

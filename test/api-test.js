@@ -36,10 +36,41 @@ async function main() {
   r = await req("GET", "/api/settings", null, reviewer1);
   check("一审账号无权访问设置", r.status === 403);
 
+  // 病种管理
+  r = await req("GET", "/api/diseases", null, admin);
+  check("病种列表默认 3 个", r.status === 200 && r.json.length === 3 &&
+    r.json.map(d => d.name).join(",") === "AMI,肥胖,肺癌", "names=" + r.json.map(d => d.name).join(","));
+  check("病种列表含引用计数", r.status === 200 && r.json.every(d => typeof d.refCount === "number"));
+  r = await req("POST", "/api/diseases", { name: "高血压" }, admin);
+  check("新增病种", r.status === 200 && r.json.id && r.json.name === "高血压");
+  const disNewId = r.json.id;
+  r = await req("POST", "/api/diseases", { name: "高血压" }, admin);
+  check("重复病种名被拒绝", r.status === 400);
+  r = await req("POST", "/api/diseases", { name: "高血压2" }, reviewer1);
+  check("非管理员不可新增病种", r.status === 403);
+  r = await req("PUT", "/api/diseases/" + disNewId, { name: "高血压病" }, admin);
+  check("病种改名", r.status === 200 && r.json.name === "高血压病");
+  r = await req("PUT", "/api/diseases/" + disNewId, { status: "inactive" }, admin);
+  check("病种停用", r.status === 200 && r.json.status === "inactive");
+  r = await req("PUT", "/api/diseases/" + disNewId, { status: "active" }, admin);
+  check("病种启用", r.status === 200 && r.json.status === "active");
+  r = await req("DELETE", "/api/diseases/" + disNewId, null, admin);
+  check("未引用病种可删除", r.status === 200 && r.json.success);
+  r = await req("DELETE", "/api/diseases/d_ami", null, admin);
+  check("被引用病种不可删除", r.status === 400);
+  r = await req("PUT", "/api/diseases/d_ami", { name: "急性心肌梗死" }, admin);
+  r = await req("GET", "/api/cards/card1", null, admin);
+  check("改名后卡片病种名称跟随", r.json.disease === "急性心肌梗死");
+  await req("PUT", "/api/diseases/d_ami", { name: "AMI" }, admin);
+
   // 卡片列表
   r = await req("GET", "/api/cards", null, admin);
   check("卡片列表 7 张种子", r.status === 200 && r.json.length === 7, "n=" + (r.json && r.json.length));
   check("种子卡默认无引用来源", r.json.every(c => Array.isArray(c.refs) && c.refs.length === 0));
+  r = await req("GET", "/api/cards?diseaseId=d_ami", null, admin);
+  check("卡片列表按病种筛选", r.status === 200 && r.json.length === 7 && r.json.every(c => c.diseaseId === "d_ami"));
+  r = await req("GET", "/api/cards?diseaseId=d_lung", null, admin);
+  check("卡片病种筛选无结果", r.status === 200 && r.json.length === 0);
 
   // 知识卡聚合内容接口
   r = await req("GET", "/api/linkage/cards", null, admin);
@@ -54,6 +85,12 @@ async function main() {
     r.json.content.includes("【卡片1】") && r.json.content.includes("【卡片2】"));
   r = await req("GET", "/api/linkage/content?cardIds=card1,notexist", null, admin);
   check("非法 id 被忽略", r.status === 200 && r.json.count === 1);
+  r = await req("GET", "/api/linkage/content?diseaseId=d_ami", null, admin);
+  check("聚合按病种 id 筛选", r.status === 200 && r.json.count === 7);
+  r = await req("GET", "/api/linkage/content?disease=AMI", null, admin);
+  check("聚合按病种名称筛选", r.status === 200 && r.json.count === 7);
+  r = await req("GET", "/api/linkage/content?diseaseId=d_lung", null, admin);
+  check("聚合病种筛选无结果", r.status === 200 && r.json.count === 0);
   r = await req("GET", "/api/linkage/content", null, null);
   check("未登录访问聚合接口返回 401", r.status === 401);
 
@@ -167,9 +204,22 @@ async function main() {
   const buf = fs.readFileSync(txt);
   const fd = new FormData();
   fd.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
+  fd.append("diseaseId", "d_ami");
+  fd.append("publishedAt", "2025-06");
   r = await req("POST", "/api/literature", fd, admin, true);
   check("上传文献入库", r.status === 200 && r.json.id, "id=" + r.json.id);
   const fileId = r.json.id;
+
+  // 缺少病种 / 发表时间被拒
+  const fdNoMeta = new FormData();
+  fdNoMeta.append("file", new Blob([buf], { type: "text/plain" }), "nometa.txt");
+  r = await req("POST", "/api/literature", fdNoMeta, admin, true);
+  check("缺病种/发表时间上传被拒", r.status === 400);
+  const fdNoDate = new FormData();
+  fdNoDate.append("file", new Blob([buf], { type: "text/plain" }), "nodate.txt");
+  fdNoDate.append("diseaseId", "d_ami");
+  r = await req("POST", "/api/literature", fdNoDate, admin, true);
+  check("缺发表时间上传被拒", r.status === 400);
 
   // 非法扩展名
   const bad = new FormData();
@@ -180,6 +230,7 @@ async function main() {
   // 文献列表 / 搜索 / 下载 / 同名 / 删除
   r = await req("GET", "/api/literature", null, admin);
   check("文献列表 1 条", r.status === 200 && r.json.length === 1 && r.json[0].name === "sample.txt");
+  check("文献列表含病种与发表时间", r.json[0].diseaseName === "AMI" && r.json[0].publishedAt === "2025-06");
   r = await req("GET", "/api/literature?keyword=sample", null, admin);
   check("文献关键词搜索", r.status === 200 && r.json.length === 1);
   r = await req("GET", "/api/literature?keyword=不存在", null, admin);
@@ -188,10 +239,28 @@ async function main() {
   check("文献下载内容一致", dl.status === 200 && (await dl.text()).includes("疼痛管理章节摘要"));
   const fd2 = new FormData();
   fd2.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
+  fd2.append("diseaseId", "d_ami");
+  fd2.append("publishedAt", "2025-06");
   r = await req("POST", "/api/literature", fd2, admin, true);
   check("同名文献不冲突", r.status === 200 && r.json.id !== fileId);
+  const dupId = r.json.id;
   r = await req("GET", "/api/literature", null, admin);
   check("文献列表 2 条", r.status === 200 && r.json.length === 2);
+
+  // 病种 / 年份筛选
+  r = await req("GET", "/api/literature?diseaseId=d_ami", null, admin);
+  check("文献按病种筛选", r.status === 200 && r.json.length === 2);
+  r = await req("GET", "/api/literature?yearFrom=2025&yearTo=2025", null, admin);
+  check("文献按年份筛选", r.status === 200 && r.json.length === 2);
+  r = await req("GET", "/api/literature?yearFrom=2026", null, admin);
+  check("文献年份筛选无结果", r.status === 200 && r.json.length === 0);
+
+  // 编辑文献：改名 / 病种 / 发表时间
+  r = await req("PUT", "/api/literature/" + dupId, { diseaseId: "d_lung", publishedAt: "2025-12" }, admin);
+  check("编辑文献病种/发表时间", r.status === 200);
+  r = await req("GET", "/api/literature?diseaseId=d_lung", null, admin);
+  check("编辑后按新病种筛选", r.status === 200 && r.json.length === 1 && r.json[0].publishedAt === "2025-12" && r.json[0].diseaseName === "肺癌");
+
   r = await req("DELETE", "/api/literature/" + fileId, null, admin);
   check("文献可删除", r.status === 200 && r.json.success);
   const dl2 = await fetch(BASE + "/api/literature/" + fileId + "/download", { headers: { Authorization: "Bearer " + admin } });
@@ -214,6 +283,8 @@ async function main() {
   // 为 AI 优化准备一份文献
   const fd3 = new FormData();
   fd3.append("file", new Blob([buf], { type: "text/plain" }), "sample.txt");
+  fd3.append("diseaseId", "d_ami");
+  fd3.append("publishedAt", "2025-06");
   r = await req("POST", "/api/literature", fd3, admin, true);
   const extractFileId = r.json.id;
 

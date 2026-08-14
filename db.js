@@ -137,7 +137,13 @@ function seed() {
     }
   ];
 
-  return { version: 2, users, cards, extractTasks: [], uploadedFiles: [], literature: [] };
+  const diseases = [
+    { id: "d_ami", name: "AMI", status: "active", createdAt: now(), updatedAt: now() },
+    { id: "d_fat", name: "肥胖", status: "active", createdAt: now(), updatedAt: now() },
+    { id: "d_lung", name: "肺癌", status: "active", createdAt: now(), updatedAt: now() }
+  ];
+
+  return { version: 3, users, cards, extractTasks: [], uploadedFiles: [], literature: [], diseases };
 }
 
 function latestBackup() {
@@ -183,7 +189,35 @@ function initDb() {
   if (!state.extractTasks) state.extractTasks = [];
   if (!state.uploadedFiles) state.uploadedFiles = [];
   if (!state.literature) state.literature = [];
-  if (state.version !== 2) state.version = 2;
+  if (!state.diseases || !state.diseases.length) {
+    state.diseases = [
+      { id: "d_ami", name: "AMI", status: "active", createdAt: now(), updatedAt: now() },
+      { id: "d_fat", name: "肥胖", status: "active", createdAt: now(), updatedAt: now() },
+      { id: "d_lung", name: "肺癌", status: "active", createdAt: now(), updatedAt: now() }
+    ];
+  }
+  function ensureDisease(name) {
+    const n = String(name || "").trim();
+    if (!n) return null;
+    let d = state.diseases.find(x => x.name === n);
+    if (!d) {
+      d = { id: "d_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: n, status: "active", createdAt: now(), updatedAt: now() };
+      state.diseases.push(d);
+    }
+    return d;
+  }
+  state.cards.forEach(c => {
+    if (!c.diseaseId) {
+      const d = ensureDisease(c.disease || "AMI");
+      c.diseaseId = d ? d.id : "d_ami";
+      if (d) c.disease = d.name;
+    }
+  });
+  state.literature.forEach(f => {
+    if (!f.diseaseId) f.diseaseId = "d_ami";
+    if (!f.publishedAt) f.publishedAt = "";
+  });
+  if (state.version !== 3) state.version = 3;
   saveDb();
   return state;
 }

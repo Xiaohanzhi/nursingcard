@@ -658,6 +658,16 @@ table a:hover{text-decoration:underline}
 .upload-item .u-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .upload-item .u-size{font-size:11px;color:var(--text3)}
 .upload-item .u-del{color:var(--danger);cursor:pointer;font-size:13px;background:none;border:none;padding:2px 4px}
+.upload-file-card{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;margin-bottom:16px;
+  border:1px solid var(--primary-light);border-radius:var(--radius-sm);
+  background:var(--primary-bg);
+}
+.upload-file-card .uf-icon{font-size:26px;flex-shrink:0;opacity:.75}
+.upload-file-card .uf-info{flex:1;min-width:0}
+.upload-file-card .uf-name{font-size:13px;font-weight:600;color:var(--text);word-break:break-all}
+.upload-file-card .uf-meta{font-size:11px;color:var(--text3);margin-top:2px}
 
 /* ===== AI 原文 / 设置页 ===== */
 .ai-raw-text{
@@ -776,6 +786,10 @@ table a:hover{text-decoration:underline}
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span class="tag tag-purple" style="font-size:12px">🩺 护理问题卡</span>
 
         </div>
+        <label>病种：</label>
+        <select id="filterDisease" onchange="filterCards()">
+          <option value="">全部病种</option>
+        </select>
         <label>状态：</label>
         <select id="filterStatus" onchange="filterCards()">
           <option value="">全部状态</option>
@@ -833,7 +847,7 @@ table a:hover{text-decoration:underline}
           <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
             <div class="dz-icon">📄</div>
             <div>点击选择或拖拽文件到此处</div>
-            <div class="dz-hint">支持 PDF / Word / Excel / TXT，单个 ≤ 20MB；上传后永久保存在文献库</div>
+            <div class="dz-hint">支持 PDF / Word / Excel / TXT，单个 ≤ 20MB；上传时需补充病种与发表时间，自动加入文献库并选中</div>
           </div>
           <input type="file" id="fileInput" style="display:none" onchange="handleFileSelect(this)">
         </div>
@@ -935,23 +949,33 @@ table a:hover{text-decoration:underline}
     <!-- ━━━ 页面4：文献管理 ━━━ -->
     <div class="page" id="page-literature">
       <div class="page-title">文献管理</div>
-      <div style="display:flex;align-items:center;margin-bottom:14px;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
         <div class="filter-bar" style="margin:0;flex:1">
           <label>搜索：</label>
           <input type="text" id="litKeyword" placeholder="🔍 搜索文献文件名..." style="width:240px" oninput="loadLiterature()">
+          <label>病种：</label>
+          <select id="litFilterDisease" onchange="loadLiterature()">
+            <option value="">全部病种</option>
+          </select>
+          <label>发表年份：</label>
+          <input type="number" id="litYearFrom" placeholder="起始" style="width:80px" oninput="loadLiterature()">
+          <span style="color:var(--text3)">-</span>
+          <input type="number" id="litYearTo" placeholder="结束" style="width:80px" oninput="loadLiterature()">
         </div>
-        <button class="btn btn-primary" onclick="document.getElementById('litFileInput').click()">＋ 上传文献</button>
-        <input type="file" id="litFileInput" style="display:none" onchange="handleLitFileSelect(this)">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="document.getElementById('litFileInput').click()">＋ 上传文献</button>
+          <input type="file" id="litFileInput" style="display:none" onchange="handleLitFileSelect(this)">
+        </div>
       </div>
       <div class="dropzone" id="litDropzone" style="margin-bottom:14px">
         <div class="dz-icon">📄</div>
         <div>点击右上角"上传文献"或拖拽文件到此处</div>
-        <div class="dz-hint">支持 PDF / Word / Excel / TXT，单个 ≤ 20MB，永久保存在文献库</div>
+        <div class="dz-hint">支持 PDF / Word / Excel / TXT，单个 ≤ 20MB；上传时需补充病种与发表时间，永久保存在文献库</div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>文件名</th><th>类型</th><th>大小</th><th>上传人</th><th>上传时间</th><th>操作</th>
+            <th>文件名</th><th>病种</th><th>发表时间</th><th>类型</th><th>大小</th><th>上传人</th><th>上传时间</th><th>操作</th>
           </tr>
         </thead>
         <tbody id="literatureTableBody"></tbody>
@@ -1044,10 +1068,28 @@ table a:hover{text-decoration:underline}
             <div class="divider"></div>
             <div class="field-note">服务端口默认 3742（config.json 中修改，需重启生效）；SSO 对接接口 /api/auth/sso 已预留。</div>
             <div class="field-note">数据文件：data/db.json；上传文件：uploads/tmp/（超时自动清理）。</div>
-          </div>
-        </div>
       </div>
     </div>
+
+    <div class="card" style="margin-top:14px;grid-column:1/-1">
+      <div class="card-title">🏥 病种管理</div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="newDiseaseName" placeholder="新病种名称，如：高血压" style="width:240px">
+          <button class="btn btn-primary" onclick="addDisease()">＋ 新增病种</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>病种名称</th><th>状态</th><th>引用数</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="diseaseTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  </div>
   </div>
 </main>
 
@@ -1117,7 +1159,9 @@ table a:hover{text-decoration:underline}
       <div class="form-row">
         <div class="form-group">
           <label>关联病种</label>
-          <input type="text" id="newCardDisease" value="AMI（急性心肌梗死）">
+          <select id="newCardDiseaseId">
+            <option value="">-- 选择病种 --</option>
+          </select>
         </div>
         <div class="form-group">
           <label>共性/专病</label>
@@ -1210,6 +1254,93 @@ table a:hover{text-decoration:underline}
     </div>
     <div class="modal-footer">
       <button class="btn btn-default" onclick="closeVersionsModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ 文献编辑模态框 ━━━ -->
+<div class="modal-overlay" id="editLitModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <span>编辑文献</span>
+      <span class="close" onclick="closeEditLitModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>文献名称</label>
+        <input type="text" id="editLitName">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>病种</label>
+          <select id="editLitDiseaseId">
+            <option value="">-- 选择病种 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>发表年份</label>
+          <select id="editLitYear">
+            <option value="">-- 年份 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>发表月份</label>
+          <select id="editLitMonth">
+            <option value="">-- 月份 --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeEditLitModal()">取消</button>
+      <button class="btn btn-success" onclick="saveEditLiterature()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━ 文献上传模态框（文献管理 / AI优化共用） ━━━ -->
+<div class="modal-overlay" id="uploadLitModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <span>上传文献</span>
+      <span class="close" onclick="closeUploadLitModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="upload-file-card">
+        <div class="uf-icon">📄</div>
+        <div class="uf-info">
+          <div class="uf-name" id="uploadLitFileName"></div>
+          <div class="uf-meta" id="uploadLitFileMeta"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>文献名称 <span class="required">*</span></label>
+        <input type="text" id="uploadLitName" placeholder="文献名称（含扩展名）">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>病种 <span class="required">*</span></label>
+          <select id="uploadLitDiseaseId">
+            <option value="">-- 选择病种 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>发表年份 <span class="required">*</span></label>
+          <select id="uploadLitYear">
+            <option value="">-- 年份 --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>发表月份 <span class="required">*</span></label>
+          <select id="uploadLitMonth">
+            <option value="">-- 月份 --</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" onclick="closeUploadLitModal()">取消</button>
+      <button class="btn btn-success" onclick="confirmUploadLiterature()">上传</button>
     </div>
   </div>
 </div>
