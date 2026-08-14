@@ -89,7 +89,7 @@ async function main() {
     await evalJs("openCardDetail('card1')");
     check("生效卡有版本历史按钮", await evalJs("document.getElementById('cardDetailFooter').textContent.includes('版本历史')"));
     await evalJs("showVersions('card1')");
-    await sleep(400);
+    for (let i = 0; i < 30 && !await evalJs("document.getElementById('versionsModal').classList.contains('show')"); i++) await sleep(200);
     check("版本历史弹层显示 v1.0", await evalJs("document.getElementById('versionsModal').classList.contains('show') && document.getElementById('versionsModalBody').textContent.includes('v1.0')"));
     await evalJs("closeVersionsModal(); closeCardDetail()");
 
@@ -117,7 +117,11 @@ async function main() {
     await evalJs("aiGotoStep2()");
     check("进入步骤2", await evalJs("!document.getElementById('ai-step2-content').classList.contains('collapsed')"));
     await evalJs("aiStartExtract()");
-    await sleep(4500);
+    for (let i = 0; i < 120; i++) {
+      const st = await evalJs("document.getElementById('aiExtractStatus').textContent");
+      if (st === "优化完成" || st === "优化失败") break;
+      await sleep(500);
+    }
     check("优化完成状态", await evalJs("document.getElementById('aiExtractStatus').textContent") === "优化完成");
     check("迭代对比面板出现", await evalJs("document.getElementById('aiExtractResult').innerHTML.includes('iterate-compare')"));
     check("建议行 = 3", await evalJs("document.querySelectorAll('.iterate-diff-row').length") === 3);
@@ -127,8 +131,9 @@ async function main() {
 
     await evalJs("acceptIterateSuggestion('iter_0')");
     await evalJs("aiConfirmDraft()");
-    await sleep(1600);
+    for (let i = 0; i < 40 && await evalJs("document.querySelector('.page.active').id") !== "page-card-list"; i++) await sleep(300);
     check("确认后回到列表", await evalJs("document.querySelector('.page.active').id") === "page-card-list");
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#cardTableBody tr').length") !== 8; i++) await sleep(300);
     check("列表出现 AI 草稿（8 张）", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 8);
     await evalJs("var c=CARDS.find(function(x){return x.aiGenerated;}); if(c) openCardDetail(c.id)");
     check("AI 草稿详情自动关联上传文献", await evalJs("document.getElementById('cardDetailBody').textContent.includes('sample.txt') && document.getElementById('cardDetailBody').textContent.includes('溶栓治疗专家共识')"));
@@ -142,29 +147,62 @@ async function main() {
     await evalJs("document.getElementById('newCardType').value='护理问题卡'; updateTypeFields()");
     check("切回护理问题卡恢复字段区", await evalJs("document.getElementById('nursingFieldsWrap').style.display !== 'none'"));
     await evalJs("document.getElementById('newCardName').value='冒烟测试卡'; document.getElementById('nc_questionName').value='冒烟问题'; addRefRow(); document.querySelector('#refEditor .rf-title').value='冒烟文献'; document.querySelector('#refEditor .rf-section').value='§1'; saveNewCard()");
-    await sleep(800);
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#cardTableBody tr').length") !== 9; i++) await sleep(300);
     check("创建后列表 9 张", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 9);
     await evalJs("var c=CARDS.find(function(x){return x.name==='冒烟测试卡';}); if(c) openCardDetail(c.id)");
     check("详情显示手动添加的引用", await evalJs("document.getElementById('cardDetailBody').textContent.includes('冒烟文献')"));
     await evalJs("closeCardDetail()");
 
     await evalJs("showPage('review-queue')");
-    await sleep(800);
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('reviewTableBody').textContent.includes('队列已清空')"); i++) await sleep(300);
     check("一审队列空（初始化全已定稿，仅空态行）", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 1);
     check("一审队列空态提示", await evalJs("document.getElementById('reviewTableBody').textContent.includes('队列已清空')"));
     await evalJs("switchReviewTab('done')");
-    await sleep(500);
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#reviewTableBody tr').length") !== 7; i++) await sleep(300);
     check("审核历史 7 条生效版", await evalJs("document.querySelectorAll('#reviewTableBody tr').length") === 7);
     check("审核历史无进入审核按钮", await evalJs("!document.getElementById('reviewTableBody').textContent.includes('进入审核')"));
     check("审核历史有查看详情", await evalJs("document.getElementById('reviewTableBody').textContent.includes('查看详情')"));
     await evalJs("switchReviewTab('l1')");
 
+    // —— 审核对比：新建卡（无来源卡）——
+    await evalJs("(async function(){ var c=CARDS.find(function(x){return x.name==='冒烟测试卡';}); await api('/cards/'+c.id+'/submit-review',{method:'POST',body:{}}); CARDS = await api('/cards'); })()");
+    await evalJs("switchReviewTab('l1')");
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('reviewTableBody').innerHTML.includes('进入审核')"); i++) await sleep(300);
+    await evalJs("openReviewPanel(CARDS.find(function(x){return x.name==='冒烟测试卡';}).id)");
+    for (let i = 0; i < 30 && !await evalJs("document.getElementById('reviewModalBody').textContent.includes('无修改前版本')"); i++) await sleep(200);
+    check("新建卡审核提示无修改前版本", await evalJs("document.getElementById('reviewModalBody').textContent.includes('无修改前版本')"));
+    check("新建卡字段正常渲染", await evalJs("document.getElementById('reviewModalBody').textContent.includes('护理目标') && document.getElementById('reviewModalBody').textContent.includes('冒烟问题')"));
+    check("新建卡无对比区块", await evalJs("document.querySelectorAll('#reviewModalBody .rv-old').length") === 0);
+    await evalJs("reviewAction('退回')");
+    await evalJs("document.getElementById('rejectReason').value='测试退回'; confirmReject()");
+    for (let i = 0; i < 40 && await evalJs("CARDS.find(function(x){return x.name==='冒烟测试卡';}).status") !== "draft"; i++) await sleep(300);
+    check("退回后冒烟卡回到草稿", await evalJs("CARDS.find(function(x){return x.name==='冒烟测试卡';}).status === 'draft'"));
+
+    // —— 审核对比：AI 优化草稿（有来源卡）——
+    await evalJs("(async function(){ var c=CARDS.find(function(x){return x.aiGenerated;}); await api('/cards/'+c.id+'/submit-review',{method:'POST',body:{}}); CARDS = await api('/cards'); })()");
+    await evalJs("switchReviewTab('l1')");
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('reviewTableBody').innerHTML.includes('进入审核')"); i++) await sleep(300);
+    await evalJs("openReviewPanel(CARDS.find(function(x){return x.aiGenerated;}).id)");
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#reviewModalBody .rv-old').length") < 3; i++) await sleep(300);
+    check("审核对比摘要显示版本与修改数", await evalJs("document.getElementById('reviewModalBody').textContent.includes('版本对比') && document.getElementById('reviewModalBody').textContent.includes('修改字段')"));
+    check("已修改标签出现", await evalJs("document.getElementById('reviewModalBody').innerHTML.includes('已修改')"));
+    check("修改前/修改后区块 ≥3", await evalJs("document.querySelectorAll('#reviewModalBody .rv-old').length >= 3 && document.querySelectorAll('#reviewModalBody .rv-new').length >= 3"));
+    check("文本变更标亮存在", await evalJs("document.querySelectorAll('#reviewModalBody .diff-del').length > 0 && document.querySelectorAll('#reviewModalBody .diff-ins').length > 0"));
+    check("措施块上下对比", await evalJs("document.getElementById('reviewModalBody').textContent.includes('推荐护理措施') && document.getElementById('reviewModalBody').textContent.includes('措施 1')"));
+    await evalJs("reviewAction('通过')");
+    await evalJs("switchReviewTab('l2')");
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('reviewTableBody').innerHTML.includes('进入审核')"); i++) await sleep(300);
+    await evalJs("openReviewPanel(CARDS.find(function(x){return x.aiGenerated;}).id)");
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#reviewModalBody .rv-old').length") < 3; i++) await sleep(300);
+    check("二审同样显示对比", await evalJs("document.querySelectorAll('#reviewModalBody .rv-old').length >= 3"));
+    await evalJs("closeReviewModal()");
+
     await evalJs("showPage('settings')");
-    await sleep(800);
+    for (let i = 0; i < 40 && await evalJs("document.getElementById('setDifyBase').value") === ""; i++) await sleep(300);
     check("设置页加载 Dify Base URL", await evalJs("document.getElementById('setDifyBase').value") === "http://127.0.0.1:3788");
     check("设置页病种管理列表 3 项", await evalJs("document.querySelectorAll('#diseaseTableBody tr').length") === 3);
     await evalJs("testDify()");
-    await sleep(1500);
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('setDifyTestResult').textContent.includes('连接成功') || document.getElementById('setDifyTestResult').textContent.includes('失败')"); i++) await sleep(300);
     check("测试连接成功", await evalJs("document.getElementById('setDifyTestResult').textContent.includes('连接成功')"));
 
     await evalJs("var c=CARDS.find(function(x){return x.name==='冒烟测试卡';}); if(c) openCardDetail(c.id)");
@@ -173,24 +211,24 @@ async function main() {
     await evalJs("setTimeout(function(){ document.querySelector('#cardDetailFooter .btn-danger').click(); }, 0)");
     for (let i = 0; i < 30 && !dialogOpen; i++) await sleep(100);
     await send("Page.handleJavaScriptDialog", { accept: true });
-    await sleep(800);
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#cardTableBody tr').length") !== 8; i++) await sleep(300);
     check("删除后列表回到 8 张", await evalJs("document.querySelectorAll('#cardTableBody tr').length") === 8);
 
     await evalJs("showPage('literature')");
-    await sleep(600);
+    for (let i = 0; i < 40 && await evalJs("document.querySelectorAll('#literatureTableBody tr').length") === 0; i++) await sleep(300);
     check("文献页显示已上传文献", await evalJs("document.querySelectorAll('#literatureTableBody tr').length") === 1 && await evalJs("document.getElementById('literatureTableBody').textContent.includes('sample.txt')"));
     check("文献列表显示病种与发表时间", await evalJs("document.getElementById('literatureTableBody').textContent.includes('AMI') && document.getElementById('literatureTableBody').textContent.includes('2025-06')"));
     await evalJs("document.querySelector('#literatureTableBody a').click()");
     await sleep(400);
     check("编辑文献弹窗年月回填", await evalJs("document.getElementById('editLitModal').classList.contains('show') && document.getElementById('editLitYear').value==='2025' && document.getElementById('editLitMonth').value==='06' && document.getElementById('editLitDiseaseId').value==='d_ami'"));
     await evalJs("document.getElementById('editLitMonth').value='07'; saveEditLiterature()");
-    await sleep(600);
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('literatureTableBody').textContent.includes('2025-07')"); i++) await sleep(300);
     check("编辑保存后列表含新发表时间", await evalJs("document.getElementById('literatureTableBody').textContent.includes('2025-07')"));
     dialogOpen = false;
     await evalJs("setTimeout(function(){ var a=document.querySelector('#literatureTableBody a[style*=\"danger\"]'); if(a) a.click(); }, 0)");
     for (let i = 0; i < 30 && !dialogOpen; i++) await sleep(100);
     await send("Page.handleJavaScriptDialog", { accept: true });
-    await sleep(800);
+    for (let i = 0; i < 40 && !await evalJs("document.getElementById('literatureTableBody').textContent.includes('暂无文献')"); i++) await sleep(300);
     check("删除文献后列表为空态", await evalJs("document.querySelectorAll('#literatureTableBody tr').length") === 1 && await evalJs("document.getElementById('literatureTableBody').textContent.includes('暂无文献')"));
 
     console.log("---");

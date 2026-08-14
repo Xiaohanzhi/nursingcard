@@ -461,6 +461,25 @@ table a:hover{text-decoration:underline}
 .field-ai{font-size:13px;color:var(--text2);text-decoration:line-through;margin-bottom:4px}
 .field-final{font-size:13px;color:var(--text);font-weight:500}
 
+/* ===== 审核版本对比 ===== */
+.review-compare-summary{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  padding:10px 12px;margin-bottom:12px;
+  background:var(--primary-bg);border:1px solid var(--primary-light);
+  border-radius:var(--radius-sm);font-size:12px;color:var(--text2);
+}
+.rv-old{
+  font-size:13px;color:var(--text3);background:var(--bg);
+  border:1px dashed var(--border);border-radius:var(--radius-sm);
+  padding:8px 10px;margin-bottom:8px;line-height:1.7;word-break:break-word;
+}
+.rv-new{font-size:13px;line-height:1.7;word-break:break-word}
+.rv-sub{font-size:11px;font-weight:600;margin-bottom:4px}
+.rv-old .rv-sub{color:var(--text3)}
+.rv-new .rv-sub{color:var(--success)}
+.diff-del{background:var(--danger-bg);color:var(--danger);text-decoration:line-through;border-radius:2px;padding:0 1px}
+.diff-ins{background:var(--success-bg);color:var(--success);border-radius:2px;padding:0 1px;font-weight:500}
+
 /* ===== Ref Panel ===== */
 .ref-panel{
   background:#FAFAF8;border-radius:var(--radius);

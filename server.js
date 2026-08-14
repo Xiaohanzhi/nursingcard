@@ -672,18 +672,30 @@ function applyField(card, field, value) {
         if (s.startsWith("[")) {
           try {
             const parsed = JSON.parse(s);
-            card.measures = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.measures) ? parsed.measures : card.measures);
+            card.measures = normalizeMeasures(Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.measures) ? parsed.measures : card.measures));
           } catch (e) { /* 忽略无法解析的措施 */ }
         } else if (s) {
           // 纯文本措施（如 "①…②…③…"）→ 拆分为单条措施
           const parts = s.split(/[①②③④⑤⑥⑦⑧⑨⑩]/).map(x => x.trim()).filter(Boolean);
-          card.measures = [{ priority: "首优", measure_name: "AI 优化措施", activities: parts.length ? parts : [s] }];
+          card.measures = [{ priority: "首优", name: "AI 优化措施", activities: parts.length ? parts : [s] }];
         }
       }
-      else if (Array.isArray(v)) card.measures = v;
+      else if (Array.isArray(v)) card.measures = normalizeMeasures(v);
       break;
     default: break;
   }
+}
+
+function normalizeMeasures(measures) {
+  if (!Array.isArray(measures)) return measures;
+  return measures.map(m => {
+    if (!m || typeof m !== "object") return m;
+    return {
+      priority: m.priority || "",
+      name: m.name || m.measure_name || "",
+      activities: Array.isArray(m.activities) ? m.activities : []
+    };
+  });
 }
 
 function normalizeRefs(refs) {
@@ -883,6 +895,14 @@ function decodeUploadName(name) {
 
 configLib.loadConfig();
 dbLib.initDb();
+// 重启后重置未完成的 AI 抽取任务（进程中断会卡在 pending/running）
+const resetTasks = db().extractTasks.filter(t => t.status === "pending" || t.status === "running");
+resetTasks.forEach(t => {
+  t.status = "failed";
+  t.error = "服务重启，任务已终止，请重新发起";
+  t.completedAt = dbLib.now();
+});
+if (resetTasks.length) dbLib.saveDb();
 cleanupOldFiles();
 setInterval(cleanupOldFiles, 60 * 60 * 1000);
 

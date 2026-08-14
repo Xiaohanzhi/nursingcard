@@ -574,6 +574,105 @@ function renderReviewFields(c) {
     '</div>';
   return html;
 }
+function renderRefsHtml(refs) {
+  if (!refs || !refs.length) return '<div style="font-size:12px;color:var(--text3)">无引用来源</div>';
+  return refs.map(function (r) {
+    return '<div class="ref-item">' +
+      '<div class="ref-title">📄 ' + esc(r.title || '') + ' — ' + esc(r.section || '') + '</div>' +
+      '<div class="ref-excerpt">' + esc(r.excerpt || '') + '</div>' +
+      '</div>';
+  }).join('');
+}
+function textDiff(a, b) {
+  a = String(a == null ? '' : a);
+  b = String(b == null ? '' : b);
+  var n = a.length, m = b.length;
+  var dp = [];
+  for (var i = 0; i <= n; i++) dp.push(new Array(m + 1).fill(0));
+  for (var i = n - 1; i >= 0; i--) {
+    for (var j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  var oldHtml = '', newHtml = '';
+  var i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      oldHtml += esc(a[i]);
+      newHtml += esc(b[j]);
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      oldHtml += '<span class="diff-del">' + esc(a[i]) + '</span>';
+      i++;
+    } else {
+      newHtml += '<span class="diff-ins">' + esc(b[j]) + '</span>';
+      j++;
+    }
+  }
+  while (i < n) { oldHtml += '<span class="diff-del">' + esc(a[i]) + '</span>'; i++; }
+  while (j < m) { newHtml += '<span class="diff-ins">' + esc(b[j]) + '</span>'; j++; }
+  return { oldHtml: oldHtml, newHtml: newHtml };
+}
+var REVIEW_FIELD_DEFS = [
+  { key: 'name', label: '卡片名称' },
+  { key: 'disease', label: '关联病种' },
+  { key: 'isCommon', label: '共性/专病', fmt: function (v) { return v ? '共性（跨病种）' : '专病特有'; } },
+  { key: 'questionName', label: '护理问题名称' },
+  { key: 'goal', label: '护理目标' },
+  { key: 'triggerCond', label: '护理问题触发' }
+];
+function reviewValue(c, key) {
+  var def = REVIEW_FIELD_DEFS.find(function (f) { return f.key === key; });
+  var raw = c[key];
+  if (def && def.fmt) return def.fmt(raw);
+  return (raw === null || raw === undefined || raw === '') ? '—' : String(raw);
+}
+function renderCompareField(label, ov, nv) {
+  if (ov === nv) {
+    return '<div class="review-field">' +
+      '<div class="field-label">' + label + '</div>' +
+      '<div class="field-final">' + esc(nv) + '</div>' +
+      '</div>';
+  }
+  var diff = (ov.length > 500 || nv.length > 500) ? null : textDiff(ov, nv);
+  var oldHtml = diff ? diff.oldHtml : esc(ov);
+  var newHtml = diff ? diff.newHtml : esc(nv);
+  return '<div class="review-field modified">' +
+    '<div class="field-label">' + label + ' <span class="tag tag-orange" style="margin-left:6px;font-size:10px">已修改</span></div>' +
+    '<div class="rv-old"><div class="rv-sub">修改前</div><div>' + oldHtml + '</div></div>' +
+    '<div class="rv-new"><div class="rv-sub">修改后</div><div class="field-final" style="font-weight:500">' + newHtml + '</div></div>' +
+    '</div>';
+}
+function renderStructuredCompare(label, oldVal, newVal) {
+  var same = JSON.stringify(oldVal || []) === JSON.stringify(newVal || []);
+  if (same) {
+    return '<div class="review-field">' +
+      '<div class="field-label">' + label + '</div>' +
+      '<div class="field-final" style="font-weight:400">' + (label === '推荐护理措施' ? renderMeasuresHtml(newVal) : renderRefsHtml(newVal)) + '</div>' +
+      '</div>';
+  }
+  return '<div class="review-field modified">' +
+    '<div class="field-label">' + label + ' <span class="tag tag-orange" style="margin-left:6px;font-size:10px">已修改</span></div>' +
+    '<div class="rv-old"><div class="rv-sub">修改前</div><div>' + (label === '推荐护理措施' ? renderMeasuresHtml(oldVal) : renderRefsHtml(oldVal)) + '</div></div>' +
+    '<div class="rv-new"><div class="rv-sub">修改后</div><div class="field-final" style="font-weight:400">' + (label === '推荐护理措施' ? renderMeasuresHtml(newVal) : renderRefsHtml(newVal)) + '</div></div>' +
+    '</div>';
+}
+function renderReviewCompare(oldCard, newCard) {
+  var changed = 0;
+  var html = '';
+  REVIEW_FIELD_DEFS.forEach(function (fd) {
+    var ov = reviewValue(oldCard, fd.key);
+    var nv = reviewValue(newCard, fd.key);
+    if (ov !== nv) changed++;
+    html += renderCompareField(fd.label, ov, nv);
+  });
+  if (JSON.stringify(oldCard.measures || []) !== JSON.stringify(newCard.measures || [])) changed++;
+  html += renderStructuredCompare('推荐护理措施', oldCard.measures, newCard.measures);
+  if (JSON.stringify(oldCard.refs || []) !== JSON.stringify(newCard.refs || [])) changed++;
+  html += renderStructuredCompare('引用来源', oldCard.refs, newCard.refs);
+  return '<div class="review-compare-summary">📋 版本对比 ' + esc(oldCard.version || '旧版') + ' → ' + esc(newCard.version || '新版') +
+    ' · 修改字段 <b>' + changed + '</b> 处</div>' + html;
+}
 function openReviewPanel(cardId) {
   var c = CARDS.find(function (x) { return x.id === cardId; });
   if (!c) return;
@@ -581,7 +680,6 @@ function openReviewPanel(cardId) {
   var level = c.status === 'review1' ? '一级审核' : '二级审核';
   document.getElementById('reviewModalTitle').textContent = '🔍 ' + level + ' — ' + c.name;
   document.getElementById('reviewNextLabel').textContent = level === '一级审核' ? '二级审核' : '定稿';
-  document.getElementById('reviewModalBody').innerHTML = renderReviewFields(c);
   document.getElementById('reviewRefBody').innerHTML = (c.refs && c.refs.length)
     ? c.refs.map(function (r) {
       return '<div class="ref-item">' +
@@ -598,6 +696,20 @@ function openReviewPanel(cardId) {
   document.getElementById('reviewPassBtn').style.display = canOp ? '' : 'none';
   document.getElementById('reviewReadonlyHint').style.display = canOp ? 'none' : '';
   document.getElementById('reviewModal').classList.add('show');
+  if (c.iterateFrom) {
+    document.getElementById('reviewModalBody').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><div>正在载入版本对比...</div></div>';
+    api('/cards/' + c.iterateFrom)
+      .then(function (oldCard) {
+        document.getElementById('reviewModalBody').innerHTML = renderReviewCompare(oldCard, c);
+      })
+      .catch(function () {
+        document.getElementById('reviewModalBody').innerHTML = renderReviewFields(c);
+      });
+  } else {
+    document.getElementById('reviewModalBody').innerHTML =
+      '<div class="field-note" style="margin-bottom:10px;padding:8px 12px;background:var(--bg);border:1px dashed var(--border);border-radius:var(--radius-sm)">📝 新建卡片，无修改前版本，以下为当前内容。</div>' +
+      renderReviewFields(c);
+  }
 }
 function closeReviewModal() {
   document.getElementById('reviewModal').classList.remove('show');
