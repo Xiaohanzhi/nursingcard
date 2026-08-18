@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    专科知识卡平台 · 前端应用逻辑（数据来自后端 API）
    ============================================================ */
 var TOKEN = localStorage.getItem('kc_token') || '';
@@ -392,17 +392,21 @@ function addMeasureRow(data) {
   row.className = 'measure-row';
   row.innerHTML =
     '<select class="ms-priority">' +
-    '<option value="首优">首优</option>' +
-    '<option value="次优">次优</option>' +
-    '<option value="次次优">次次优</option>' +
-    '<option value="多学科（辅助）">多学科（辅助）</option>' +
+    '<option value="1">1</option>' +
+    '<option value="2">2</option>' +
+    '<option value="3">3</option>' +
+    '<option value="4">4</option>' +
+    '<option value="5">5</option>' +
+    '<option value="6">6</option>' +
+    '<option value="7">7</option>' +
+    '<option value="8">8</option>' +
     '</select>' +
     '<input class="ms-name" placeholder="措施名称，如：休息与活动">' +
     '<textarea class="ms-activities" rows="2" placeholder="护理活动，每行一条，如：①绝对卧床"></textarea>' +
     '<button type="button" class="btn btn-sm btn-danger ms-del" onclick="removeMeasureRow(this)">✕</button>';
   host.appendChild(row);
   if (data) {
-    row.querySelector('.ms-priority').value = data.priority || '首优';
+    row.querySelector('.ms-priority').value = data.priority || '1';
     row.querySelector('.ms-name').value = data.name || '';
     row.querySelector('.ms-activities').value = (data.activities || []).join('\n');
   }
@@ -541,7 +545,7 @@ function canReviewLevel(level) {
   var r = CURRENT_USER ? CURRENT_USER.role : '';
   return level === 1 ? (r === 'reviewer1' || r === 'admin') : (r === 'reviewer2' || r === 'admin');
 }
-var PRIORITY_CLASS = { '首优': 'tag-red', '次优': 'tag-orange', '次次优': 'tag-blue', '多学科（辅助）': 'tag-purple', '辅助': 'tag-purple' };
+var PRIORITY_CLASS = { 1:'tag-red', 2:'tag-orange', 3:'tag-blue', 4:'tag-purple', 5:'tag-gray', 6:'tag-gray', 7:'tag-gray', 8:'tag-gray' };
 function renderMeasuresHtml(measures) {
   if (!measures || !measures.length) return '<div style="font-size:12px;color:var(--text3)">暂无推荐护理措施</div>';
   return measures.map(function (m, i) {

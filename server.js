@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -677,7 +677,7 @@ function applyField(card, field, value) {
         } else if (s) {
           // 纯文本措施（如 "①…②…③…"）→ 拆分为单条措施
           const parts = s.split(/[①②③④⑤⑥⑦⑧⑨⑩]/).map(x => x.trim()).filter(Boolean);
-          card.measures = [{ priority: "首优", name: "AI 优化措施", activities: parts.length ? parts : [s] }];
+          card.measures = [{ priority: 1, name: "AI 优化措施", activities: parts.length ? parts : [s] }];
         }
       }
       else if (Array.isArray(v)) card.measures = normalizeMeasures(v);
