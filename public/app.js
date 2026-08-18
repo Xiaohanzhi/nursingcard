@@ -661,6 +661,39 @@ function renderStructuredCompare(label, oldVal, newVal) {
     '<div class="rv-new"><div class="rv-sub">修改后</div><div class="field-final" style="font-weight:400">' + (label === '推荐护理措施' ? renderMeasuresHtml(newVal) : renderRefsHtml(newVal)) + '</div></div>' +
     '</div>';
 }
+function renderMeasureCompare(oldMeasures, newMeasures) {
+  var changed = 0;
+  var html = '';
+  var maxLen = Math.max(oldMeasures.length, newMeasures.length);
+  for (var i = 0; i < maxLen; i++) {
+    var om = oldMeasures[i];
+    var nm = newMeasures[i];
+    if (!om && !nm) continue;
+    if (!om || !nm || om.name !== nm.name || JSON.stringify(om.activities || []) !== JSON.stringify(nm.activities || [])) {
+      changed++;
+      html += '<div class="review-field modified" style="margin-bottom:8px">' +
+        '<div class="field-label">措施 ' + (i + 1) + ' <span class="tag ' + (PRIORITY_CLASS[nm ? nm.priority : om.priority] || 'tag-gray') + '" style="font-size:10px;margin-left:4px">' + esc(nm ? nm.priority : '') + '</span> <b>' + esc((nm || om).name || '') + '</b> <span class="tag tag-orange" style="font-size:10px">已修改</span></div>' +
+        '<div class="rv-old"><div class="rv-sub">修改前</div><div>' + (om ? renderSingleMeasure(om) : '<span style="color:var(--text3)">无</span>') + '</div></div>' +
+        '<div class="rv-new"><div class="rv-sub">修改后</div><div class="field-final">' + (nm ? renderSingleMeasure(nm) : '<span style="color:var(--text3)">无</span>') + '</div></div>' +
+      '</div>';
+    } else {
+      html += '<div style="margin-bottom:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm)">' +
+        '<div class="field-label">措施 ' + (i + 1) + ' <span class="tag ' + (PRIORITY_CLASS[nm.priority] || 'tag-gray') + '" style="font-size:10px;margin-left:4px">' + esc(nm.priority) + '</span> <b>' + esc(nm.name || '') + '</b></div>' +
+        '<div style="font-size:13px;color:var(--text);line-height:1.7">' + esc((nm.activities || []).join('；')) + '</div>' +
+      '</div>';
+    }
+  }
+  if (html) {
+    html = '<div class="review-field' + (changed ? ' modified' : '') + '"><div class="field-label">推荐护理措施' + (changed ? ' <span class="tag tag-orange" style="font-size:10px">已修改 ' + changed + ' 项</span>' : '') + '</div></div>' + html;
+  }
+  return { html: html, changed: changed };
+}
+
+function renderSingleMeasure(m) {
+  return '<div style="padding:4px 0"><b>' + esc(m.name || '') + '</b></div>' +
+    '<div style="font-size:13px;color:var(--text);line-height:1.7">' + esc((m.activities || []).join('；')) + '</div>';
+}
+
 function renderReviewCompare(oldCard, newCard) {
   var changed = 0;
   var html = '';
@@ -670,8 +703,9 @@ function renderReviewCompare(oldCard, newCard) {
     if (ov !== nv) changed++;
     html += renderCompareField(fd.label, ov, nv);
   });
-  if (JSON.stringify(oldCard.measures || []) !== JSON.stringify(newCard.measures || [])) changed++;
-  html += renderStructuredCompare('推荐护理措施', oldCard.measures, newCard.measures);
+  var measureResult = renderMeasureCompare(oldCard.measures || [], newCard.measures || []);
+  changed += measureResult.changed;
+  html += measureResult.html;
   if (JSON.stringify(oldCard.refs || []) !== JSON.stringify(newCard.refs || [])) changed++;
   html += renderStructuredCompare('引用来源', oldCard.refs, newCard.refs);
   return '<div class="review-compare-summary">📋 版本对比 ' + esc(oldCard.version || '旧版') + ' → ' + esc(newCard.version || '新版') +
