@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>专科知识卡平台 · MVP 原型</title>
+<title>专科知识卡平台</title>
 <style>
 :root{
   --primary:#08979C;--primary-light:#E6F7F8;--primary-bg:#EDF8F9;
@@ -640,18 +640,43 @@ table a:hover{text-decoration:underline}
 }
 .login-overlay.hidden{display:none}
 .login-card{
-  width:400px;background:var(--surface);border-radius:12px;
-  padding:34px 36px;box-shadow:0 20px 60px rgba(0,0,0,.25);
+  width:400px;background:var(--surface);border-radius:16px;
+  padding:40px 36px 28px;box-shadow:0 25px 80px rgba(0,0,0,.3);
+  position:relative;overflow:hidden;
 }
-.login-card .login-logo{font-size:20px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px}
-.login-card .login-logo .icon{
-  width:38px;height:38px;border-radius:10px;background:var(--primary);
-  color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;
+.login-header{text-align:center;margin-bottom:28px;}
+.login-logo-img{height:28px;width:auto;margin-bottom:4px;opacity:.7;}
+.login-subtitle{font-size:20px;font-weight:700;color:var(--text);margin-top:4px;}
+.login-card .form-group{margin-bottom:18px;}
+.login-card .form-group label{font-size:13px;margin-bottom:6px;display:block;}
+.login-card .input-wrap{
+  position:relative;display:flex;align-items:center;
 }
-.login-card .login-err{font-size:12px;color:var(--danger);min-height:18px;margin-bottom:8px}
-.login-card .login-hint{
-  margin-top:16px;font-size:11px;color:var(--text3);line-height:1.8;
-  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 10px;
+.login-card .input-icon{
+  position:absolute;left:12px;font-size:16px;color:var(--text3);
+  pointer-events:none;z-index:1;
+}
+.login-card .input-wrap input{
+  width:100%;padding:10px 12px 10px 38px;border:1.5px solid var(--border);
+  border-radius:10px;font-size:14px;background:var(--bg);
+  transition:all .2s;color:var(--text);outline:none;
+}
+.login-card .input-wrap input:focus{
+  border-color:var(--primary);box-shadow:0 0 0 4px rgba(8,151,156,.12);
+  background:var(--surface);
+}
+.login-card .login-err{font-size:12px;color:var(--danger);min-height:20px;margin-bottom:12px;text-align:center;}
+.login-card .btn-login{
+  width:100%;padding:12px;font-size:15px;font-weight:600;border-radius:10px;
+  letter-spacing:2px;cursor:pointer;border:none;transition:all .2s;
+  background:linear-gradient(135deg,#08979C,#06777B);color:#fff;margin-top:4px;
+  justify-content:center;
+}
+.login-card .btn-login:hover{transform:translateY(-1px);box-shadow:0 8px 25px rgba(8,151,156,.35);}
+.login-card .btn-login:active{transform:translateY(0);}
+.login-card .login-footer{
+  text-align:center;font-size:11px;color:var(--text3);margin-top:24px;padding-top:16px;
+  border-top:1px solid var(--border);
 }
 
 /* ===== 文件上传 ===== */
@@ -711,18 +736,27 @@ table a:hover{text-decoration:underline}
 <!-- ━━━ 登录页 ━━━ -->
 <div class="login-overlay hidden" id="loginPage">
   <div class="login-card">
-    <div class="login-logo"><div class="icon">🩺</div>专科知识卡平台</div>
+    <div class="login-header">
+      <img class="login-logo-img" src="logo.png" alt="EWELL">
+      <div class="login-subtitle">专科知识卡平台</div>
+    </div>
     <div class="form-group">
       <label>用户名</label>
-      <input id="loginUser" value="admin">
+      <div class="input-wrap">
+        <span class="input-icon">👤</span>
+        <input id="loginUser" value="admin" placeholder="请输入用户名">
+      </div>
     </div>
     <div class="form-group">
       <label>密码</label>
-      <input id="loginPass" type="password" value="admin123">
+      <div class="input-wrap">
+        <span class="input-icon">🔒</span>
+        <input id="loginPass" type="password" value="admin123" placeholder="请输入密码">
+      </div>
     </div>
     <div class="login-err" id="loginErr"></div>
-    <button class="btn btn-primary btn-lg" style="width:100%" onclick="doLogin()">登 录</button>
-    <div class="login-hint">默认账号：admin/admin123（管理员）· zhang/123456（录入）· li/123456（一审）· wang/123456（二审）</div>
+    <button class="btn btn-primary btn-login" onclick="doLogin()">登 录</button>
+    <div class="login-footer">© 2026 医惠科技有限公司</div>
   </div>
 </div>
 
@@ -733,7 +767,7 @@ table a:hover{text-decoration:underline}
     <div>知识卡平台</div>
   </div>
   <div class="user">
-    <div class="avatar">李</div>
+    <div class="avatar" id="userAvatar">-</div>
     <div class="info">
       <div class="name" id="userName">--</div>
       <div class="role" id="userRole">--</div>

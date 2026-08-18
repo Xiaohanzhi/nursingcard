@@ -18,7 +18,7 @@ var pendingUploadCb = null;
 var pollTimer = null;
 
 var STATUS_MAP = { draft: '草稿', review1: '一级审核中', review2: '二级审核中', published: '已定稿', superseded: '已停用' };
-var ROLE_MAP = { admin: '管理员', engineer: '知识工程师', reviewer1: '一审审核员', reviewer2: '二审审核员', viewer: '查看者' };
+var ROLE_MAP = { admin: '管理员', engineer: '录入员', reviewer1: '一审', reviewer2: '二审', viewer: '查看者' };
 var TYPE_CLASS = {
   '护理问题卡': 'tag-purple',
   '评估卡': 'tag-blue',
@@ -86,6 +86,7 @@ function logout() {
 function afterLogin() {
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('userName').textContent = CURRENT_USER.displayName;
+  document.getElementById('userAvatar').textContent = (CURRENT_USER.displayName || '?')[0];
   document.getElementById('userRole').textContent = ROLE_MAP[CURRENT_USER.role] || CURRENT_USER.role;
   document.getElementById('navSettings').style.display = CURRENT_USER.role === 'admin' ? '' : 'none';
   currentReviewTab = CURRENT_USER.role === 'reviewer2' ? 'l2' : 'l1';
